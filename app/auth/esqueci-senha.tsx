@@ -1,12 +1,16 @@
 import ButtonCustom from "@/components/Button";
 import Input from "@/components/Inputs/Input";
+import { requestPasswordReset } from "@/services/authService";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { showMessage } from "react-native-flash-message";
+import ConfirmationModal from "@/components/ConfirmationModal";
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState("");
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [codigoConfirmacao, setCodigoConfirmacao] = useState("");
   const router = useRouter();
 
   async function handleForgotPassword() {
@@ -27,14 +31,35 @@ export default function ForgotPasswordScreen() {
     }
 
     try {
+      await requestPasswordReset(email);
       showMessage({
         message: "Um código de recuperação foi enviado para o email informado.",
         type: "success",
       });
-      router.push("/auth/login");
-    } catch (error) {
+      setIsModalVisible(true);
+    } catch (error: any) {
       showMessage({
-        message: "Erro ao enviar solicitação de recuperação.",
+        message: error.message,
+        type: "danger",
+      });
+    }
+  }
+
+  async function handleConfirmResetCode(codigoConfirmacao?: string) {
+    if (!codigoConfirmacao) return;
+    try {
+      showMessage({
+        message: "Código de recuperação confirmado com sucesso!",
+        type: "success",
+      });
+      setIsModalVisible(false);
+      router.push({
+        pathname: "/auth/trocar-senha",
+        params: { email, codigoConfirmacao },
+      });
+    } catch (error: any) {
+      showMessage({
+        message: "Código de recuperação inválido.",
         type: "danger",
       });
     }
@@ -58,6 +83,17 @@ export default function ForgotPasswordScreen() {
         title="Recuperar Senha"
         onPress={handleForgotPassword}
         color="black"
+      />
+      <ConfirmationModal
+        visible={isModalVisible}
+        onCancel={() => setIsModalVisible(false)}
+        onConfirm={handleConfirmResetCode}
+        message="Digite o código de recuperação enviado para o seu e-mail."
+        input={{
+          placeholder: "Código de recuperação",
+          value: codigoConfirmacao,
+          onChangeText: setCodigoConfirmacao,
+        }}
       />
     </View>
   );

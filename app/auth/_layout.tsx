@@ -29,6 +29,12 @@ export default function AuthLayout() {
         }}
       />
       <Stack.Screen
+        name="trocar-senha"
+        options={{
+          title: "Trocar Senha",
+        }}
+      />
+      <Stack.Screen
         name="cadastro-participante"
         options={{
           title: "Criar Parcipante",
