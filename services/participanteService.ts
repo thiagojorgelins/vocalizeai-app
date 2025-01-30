@@ -1,7 +1,7 @@
+import { ParticipantePayload } from "@/types/ParticipantePayload";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "./api";
 import { getToken } from "./util";
-import { ParticipantePayload } from "@/types/ParticipantePayload";
 
 export const createParticipante = async (data: ParticipantePayload): Promise<void> => {
   try {

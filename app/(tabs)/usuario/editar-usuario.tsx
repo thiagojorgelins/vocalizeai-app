@@ -1,6 +1,6 @@
 import ButtonCustom from "@/components/Button";
-import Input from "@/components/Inputs/Input";
 import ConfirmationModal from "@/components/ConfirmationModal";
+import Input from "@/components/Inputs/Input";
 import { doLogout } from "@/services/authService";
 import { getUser, updateUser } from "@/services/usuarioService";
 import { useFocusEffect, useRouter } from "expo-router";

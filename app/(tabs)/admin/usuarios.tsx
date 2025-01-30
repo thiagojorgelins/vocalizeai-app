@@ -1,6 +1,6 @@
 import ButtonCustom from "@/components/Button";
-import Input from "@/components/Inputs/Input";
 import ConfirmationModal from "@/components/ConfirmationModal";
+import Input from "@/components/Inputs/Input";
 import { deleteUser, getAllUsers, updateUser } from "@/services/usuarioService";
 import { Usuario } from "@/types/Usuario";
 import { MaterialIcons } from "@expo/vector-icons";

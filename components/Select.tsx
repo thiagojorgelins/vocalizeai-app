@@ -1,7 +1,7 @@
-import React from "react";
-import { View, Text, StyleSheet } from "react-native";
-import { Picker } from "@react-native-picker/picker";
 import { SelectProps } from "@/types/SelectProps";
+import { Picker } from "@react-native-picker/picker";
+import React from "react";
+import { StyleSheet, Text, View } from "react-native";
 
 export default function Select({
   label,

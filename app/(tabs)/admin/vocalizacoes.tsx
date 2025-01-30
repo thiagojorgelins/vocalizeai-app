@@ -1,6 +1,6 @@
 import ButtonCustom from "@/components/Button";
-import Input from "@/components/Inputs/Input";
 import ConfirmationModal from "@/components/ConfirmationModal";
+import Input from "@/components/Inputs/Input";
 import {
   createVocalizacoes,
   deleteVocalizacoes,

@@ -1,9 +1,9 @@
 import { Header } from "@/components/Header";
+import { getRole } from "@/services/util";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { StyleSheet } from "react-native";
-import { getRole } from "@/services/util";
 
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof MaterialIcons>["name"];

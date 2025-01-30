@@ -11,20 +11,17 @@ import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
-  Button,
   Modal,
   Pressable,
   StyleSheet,
-  useColorScheme,
   Text,
-  View,
+  View
 } from "react-native";
 import { showMessage } from "react-native-flash-message";
 
 import Select from "@/components/Select";
-import { Vocalizacao } from "@/types/Vocalizacao";
 import { getVocalizacoes } from "@/services/vocalizacoesService";
+import { Vocalizacao } from "@/types/Vocalizacao";
 import ButtonCustom from "../../components/Button";
 
 export default function HomeScreen() {

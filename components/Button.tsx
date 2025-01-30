@@ -1,6 +1,6 @@
-import React from 'react';
-import { TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { ButtonCustomProps } from '@/types/ButtonProps';
+import React from 'react';
+import { StyleSheet, Text, TouchableOpacity } from 'react-native';
 
 export default function ButtonCustom({ title, color = '#007BFF', onPress, style }: ButtonCustomProps) {
   return (

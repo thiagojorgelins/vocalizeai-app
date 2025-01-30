@@ -1,9 +1,9 @@
 import ButtonCustom from "@/components/Button";
-import React, { useState } from "react";
-import { StyleSheet, View } from "react-native";
 import InputPassword from "@/components/Inputs/InputPassword";
 import { resetPassword } from "@/services/authService";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useState } from "react";
+import { StyleSheet, View } from "react-native";
 import { showMessage } from "react-native-flash-message";
 
 export default function ChangePasswordScreen() {

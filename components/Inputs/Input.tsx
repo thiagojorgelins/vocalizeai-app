@@ -1,7 +1,7 @@
-import React from "react";
-import { View, Text, TextInput } from "react-native";
-import { MaskedTextInput } from "react-native-mask-text";
 import { InputProps } from "@/types/InputProps";
+import React from "react";
+import { Text, TextInput, View } from "react-native";
+import { MaskedTextInput } from "react-native-mask-text";
 import { styles } from "./style";
 
 export default function Input({

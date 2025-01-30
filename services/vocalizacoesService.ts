@@ -1,4 +1,3 @@
-import { showMessage } from "react-native-flash-message";
 import { Vocalizacao } from "../types/Vocalizacao";
 import { api } from "./api";
 import { getRole, getToken } from "./util";

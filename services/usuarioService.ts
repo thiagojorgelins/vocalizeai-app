@@ -1,4 +1,3 @@
-import { ParticipantePayload } from "@/types/ParticipantePayload";
 import { UsuarioUpdate } from "@/types/UsuarioUpdate";
 import { api } from "./api";
 import { getToken, getUserId } from "./util";

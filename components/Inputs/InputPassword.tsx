@@ -1,8 +1,8 @@
+import { InputProps } from "@/types/InputProps";
 import React, { useState } from "react";
 import { Text, TextInput, TouchableOpacity, View } from "react-native";
-import Icon from "react-native-vector-icons/Ionicons";
+import { MaterialIcons } from "@expo/vector-icons";
 import { styles } from "./style";
-import { InputProps } from "@/types/InputProps";
 
 export default function InputPassword({
   placeholder,
@@ -30,9 +30,9 @@ export default function InputPassword({
           onPress={() => setHidePass(!hidePass)}
         >
           {hidePass ? (
-            <Icon name="eye" color="#878383" size={24} />
+            <MaterialIcons name="visibility" color="#878383" size={24} />
           ) : (
-            <Icon name="eye-off" color="#878383" size={24} />
+            <MaterialIcons name="visibility-off" color="#878383" size={24} />
           )}
         </TouchableOpacity>
       </View>

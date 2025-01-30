@@ -1,12 +1,12 @@
 import ButtonCustom from "@/components/Button";
+import ConfirmationModal from "@/components/ConfirmationModal";
 import Input from "@/components/Inputs/Input";
 import InputPassword from "@/components/Inputs/InputPassword";
-import { doLogin, sendConfirmationCode, confirmRegistration } from "@/services/authService";
+import { confirmRegistration, doLogin, sendConfirmationCode } from "@/services/authService";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { showMessage } from "react-native-flash-message";
-import ConfirmationModal from "@/components/ConfirmationModal";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");

@@ -1,8 +1,8 @@
+import { TokenPayload } from "@/types/TokenPayload";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { jwtDecode } from "jwt-decode";
 import { showMessage } from "react-native-flash-message";
-import { TokenPayload } from "@/types/TokenPayload";
 import { api } from "./api";
 
 let isUpdatingToken = false;
@@ -208,7 +208,6 @@ const confirmPasswordReset = async (email: string, codigoConfirmacao: string): P
     const response = await api.post('/auth/confirm-password-reset', { email, codigo_confirmacao: codigoConfirmacao });
     return response.data;
   } catch (error: any) {
-    console.log(JSON.stringify(error));
     const errorMessage = error.response?.data?.detail || error.message || "Erro ao confirmar o código de recuperação.";
     throw new Error(errorMessage);
   }
@@ -219,10 +218,9 @@ const resetPassword = async (email: string, codigoConfirmacao: string, novaSenha
     const response = await api.post('/auth/confirm-password-reset', { email, codigo_confirmacao: codigoConfirmacao, nova_senha: novaSenha });
     return response.data;
   } catch (error: any) {
-    console.log(JSON.stringify(error));
     const errorMessage = error.response?.data?.detail || error.message || "Erro ao redefinir a senha.";
     throw new Error(errorMessage);
   }
 };
 
-export { doLogin, doLogout, getExpirationTime, register, updateToken, sendConfirmationCode, confirmRegistration, requestPasswordReset, confirmPasswordReset, resetPassword };
+export { confirmPasswordReset, confirmRegistration, doLogin, doLogout, getExpirationTime, register, requestPasswordReset, resetPassword, sendConfirmationCode, updateToken };

@@ -1,13 +1,13 @@
 import ButtonCustom from "@/components/Button";
+import ConfirmationModal from "@/components/ConfirmationModal";
 import Input from "@/components/Inputs/Input";
 import InputPassword from "@/components/Inputs/InputPassword";
 import Link from "@/components/Link";
-import { register, confirmRegistration, doLogin } from "@/services/authService";
+import { confirmRegistration, doLogin, register } from "@/services/authService";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet } from "react-native";
 import { showMessage } from "react-native-flash-message";
-import ConfirmationModal from "@/components/ConfirmationModal";
 
 export default function CadastroUsuarioScreen() {
   const [nome, setNome] = useState("");
