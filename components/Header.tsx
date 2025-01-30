@@ -20,7 +20,7 @@ export function Header() {
       <Text style={styles.title}>CAUTA</Text>
       <TouchableOpacity
         style={styles.button_user}
-        onPress={() => router.push("/editar-usuario")}
+        onPress={() => router.push("/usuario/editar-usuario")}
       >
         <Text>{username}</Text>
         <Ionicons name="person-circle-outline" size={24}/>

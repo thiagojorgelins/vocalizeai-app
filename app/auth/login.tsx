@@ -1,15 +1,18 @@
 import ButtonCustom from "@/components/Button";
 import Input from "@/components/Inputs/Input";
 import InputPassword from "@/components/Inputs/InputPassword";
-import { doLogin } from "@/services/authService";
+import { doLogin, sendConfirmationCode, confirmRegistration } from "@/services/authService";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { showMessage } from "react-native-flash-message";
+import ConfirmationModal from "@/components/ConfirmationModal";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [codigoConfirmacao, setCodigoConfirmacao] = useState("");
   const router = useRouter();
 
   async function handleLogin() {
@@ -30,13 +33,51 @@ export default function LoginScreen() {
     }
 
     try {
-      const isLoggedIn = await doLogin(email, password);
-      if (isLoggedIn) {
+      const loginStatus = await doLogin(email, password);
+      if (loginStatus === "success") {
+        router.replace("/(tabs)");
+      } else if (loginStatus === "unverified") {
+        setIsModalVisible(true);
+      }
+    } catch (error: any) {
+      showMessage({
+        message: "Erro inesperado ao fazer login.",
+        type: "danger",
+      });
+    }
+  }
+
+  async function handleConfirmRegistration(codigoConfirmacao?: string) {
+    if (!codigoConfirmacao) return;
+    try {
+      await confirmRegistration(email, codigoConfirmacao);
+      showMessage({
+        message: "Cadastro confirmado com sucesso!",
+        type: "success",
+      });
+      setIsModalVisible(false);
+      const loginStatus = await doLogin(email, password);
+      if (loginStatus === "success") {
         router.replace("/(tabs)");
       }
     } catch (error: any) {
       showMessage({
-        message: error.message || "Erro inesperado ao fazer login.",
+        message: "Código de confirmação inválido.",
+        type: "danger",
+      });
+    }
+  }
+
+  async function handleResendCode() {
+    try {
+      await sendConfirmationCode(email);
+      showMessage({
+        message: "Novo código de confirmação enviado para o e-mail.",
+        type: "success",
+      });
+    } catch (error: any) {
+      showMessage({
+        message: "Erro ao enviar o código de confirmação.",
         type: "danger",
       });
     }
@@ -75,6 +116,20 @@ export default function LoginScreen() {
       <TouchableOpacity onPress={() => router.push("/auth/cadastro")}>
         <Text style={styles.linkText}>Não possui cadastro? Cadastre-se</Text>
       </TouchableOpacity>
+
+      <ConfirmationModal
+        visible={isModalVisible}
+        onCancel={() => setIsModalVisible(false)}
+        onConfirm={handleConfirmRegistration}
+        onResend={handleResendCode}
+        showResendButton={true}
+        message="Digite o código de confirmação enviado para o seu e-mail."
+        input={{
+          placeholder: "Código de confirmação",
+          value: codigoConfirmacao,
+          onChangeText: setCodigoConfirmacao,
+        }}
+      />
     </View>
   );
 }

@@ -1,8 +1,8 @@
 import ButtonCustom from "@/components/Button";
 import Input from "@/components/Inputs/Input";
-import ConfirmationModal from "@/components/Modal";
+import ConfirmationModal from "@/components/ConfirmationModal";
 import { doLogout } from "@/services/authService";
-import { getUserData, updateUserData } from "@/services/userService";
+import { getUser, updateUser } from "@/services/usuarioService";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import { ScrollView, StyleSheet } from "react-native";
@@ -17,7 +17,7 @@ export default function EditarUsuarioScreen() {
 
   const loadUserData = useCallback(async () => {
     try {
-      const userData = await getUserData();
+      const userData = await getUser();
       setEmail(userData.email);
       setNome(userData.nome);
       setCelular(userData.celular);
@@ -37,7 +37,7 @@ export default function EditarUsuarioScreen() {
 
   async function handleUpdate() {
     try {
-      await updateUserData({ email, nome, celular });
+      await updateUser({ email, nome, celular });
       showMessage({
         message: "Dados do usuário atualizados!",
         type: "success",
@@ -75,6 +75,7 @@ export default function EditarUsuarioScreen() {
         value={celular}
         placeholder="Informe seu celular"
         onChangeText={setCelular}
+        keyboardType="phone-pad"
       />
       <ButtonCustom
         title="Atualizar Dados do Usuário"
@@ -84,7 +85,7 @@ export default function EditarUsuarioScreen() {
       />
       <ButtonCustom
         title="Ir para Dados do Participante"
-        onPress={() => router.push("/dados-participante")}
+        onPress={() => router.push("/usuario/dados-participante")}
         color="#464646"
         style={{ marginBottom: 10 }}
       />

@@ -1,14 +1,14 @@
 import ButtonCustom from "@/components/Button";
 import Input from "@/components/Inputs/Input";
-import ConfirmationModal from "@/components/Modal";
+import ConfirmationModal from "@/components/ConfirmationModal";
 import Select from "@/components/Select";
 import { doLogout } from "@/services/authService";
 import {
-    createParticipantData,
-    getParticipantData,
-    getUserData,
-    updateParticipantData,
-} from "@/services/userService";
+  createParticipante,
+  getParticipante,
+  updateParticipante,
+} from "@/services/participanteService";
+import { getUser } from "@/services/usuarioService";
 import { ParticipantePayload } from "@/types/ParticipantePayload";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
@@ -23,13 +23,13 @@ export default function DadosParticipanteScreen() {
   const [participantId, setParticipantId] = useState<string | null>(null);
   const [isModalVisible, setModalVisible] = useState(false);
   const router = useRouter();
-
+  
   const loadParticipantData = useCallback(async () => {
     try {
-      const userData = await getUserData();
+      const userData = await getUser();
 
       if (userData.participante && userData.participante.id) {
-        const participantData = await getParticipantData(
+        const participantData = await getParticipante(
           userData.participante.id.toString()
         );
         setParticipantId(participantData.id.toString());
@@ -69,18 +69,18 @@ export default function DadosParticipanteScreen() {
       };
 
       if (participantId) {
-        await updateParticipantData(participantId, payload);
+        await updateParticipante(participantId, payload);
         showMessage({
           message: "Dados do participante atualizados!",
           type: "success",
         });
       } else {
-        await createParticipantData(payload);
+        await createParticipante(payload);
         showMessage({
           message: "Participante criado com sucesso!",
           type: "success",
         });
-        router.replace("/editar-usuario");
+        router.replace("/usuario/editar-usuario");
       }
       setModalVisible(false);
     } catch (error: any) {
@@ -142,7 +142,7 @@ export default function DadosParticipanteScreen() {
       />
       <ButtonCustom
         title="Voltar para Dados do Usuário"
-        onPress={() => router.push("/editar-usuario")}
+        onPress={() => router.push("/usuario/editar-usuario")}
         color="#464646"
         style={{ marginBottom: 10 }}
       />

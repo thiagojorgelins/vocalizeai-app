@@ -1,4 +1,5 @@
 export interface Vocalizacao {
-    id: number;
+    id: number
     nome: string;
+    descricao: string; 
   }

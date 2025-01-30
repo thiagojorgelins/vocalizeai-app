@@ -2,7 +2,7 @@ import ButtonCustom from "@/components/Button";
 import Input from "@/components/Inputs/Input";
 import Select from "@/components/Select";
 
-import { createParticipantData } from "@/services/userService";
+import { createParticipante } from "@/services/participanteService";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet } from "react-native";
@@ -12,9 +12,9 @@ const API_BASE_URL =
   process.env.EXPO_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
 export default function CadastroParticipanteScreen() {
-  const [genero, setGenero] = useState("");
+  const [genero, setGenero] = useState("Masculino");
   const [nivelSuporte, setNivelSuporte] = useState("1");
-  const [qtdPalavras, setQtdPalavras] = useState("");
+  const [qtdPalavras, setQtdPalavras] = useState("Nenhuma palavra");
   const [idade, setIdade] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
@@ -46,7 +46,7 @@ export default function CadastroParticipanteScreen() {
             qtd_palavras: qtdPalavras,
         };
 
-        await createParticipantData(payload);
+        await createParticipante(payload);
 
         showMessage({
             message: "Participante criado com sucesso!",
@@ -75,8 +75,8 @@ export default function CadastroParticipanteScreen() {
         selectedValue={genero}
         onValueChange={setGenero}
         options={[
-          { label: "Masculino", value: "M" },
-          { label: "Feminino", value: "F" },
+          { label: "Masculino", value: "Masculino" },
+          { label: "Feminino", value: "Feminino" },
         ]}
       />
 

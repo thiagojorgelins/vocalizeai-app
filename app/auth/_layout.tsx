@@ -1,6 +1,5 @@
 import { Stack } from "expo-router";
 import React from "react";
-import FlashMessage from "react-native-flash-message";
 
 export default function AuthLayout() {
   return (
@@ -30,7 +29,7 @@ export default function AuthLayout() {
         }}
       />
       <Stack.Screen
-        name="participante"
+        name="cadastro-participante"
         options={{
           title: "Criar Parcipante",
         }}

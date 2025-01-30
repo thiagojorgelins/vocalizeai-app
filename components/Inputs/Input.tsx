@@ -13,6 +13,8 @@ export default function Input({
   style,
   maxLength,
   mask,
+  multiline,
+  editable
 }: InputProps) {
   return (
     <>
@@ -25,6 +27,8 @@ export default function Input({
             placeholder={placeholder}
             placeholderTextColor="#878383"
             style={styles.input}
+            multiline={multiline}
+            editable={editable}
             value={value}
             onChangeText={(text, rawText) => {
                 if (onChangeText) onChangeText(rawText);
@@ -37,6 +41,8 @@ export default function Input({
             placeholderTextColor="#878383"
             style={styles.input}
             maxLength={maxLength}
+            multiline={multiline}
+            editable={editable}
             value={value}
             onChangeText={onChangeText}
             keyboardType={keyboardType}
