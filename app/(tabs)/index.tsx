@@ -9,6 +9,7 @@ import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
+import { FFmpegKit } from "ffmpeg-kit-react-native";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -27,7 +28,6 @@ export default function HomeScreen() {
   const router = useRouter();
   const appState = useRef(AppState.currentState);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
-  const [recordingFileUri, setRecordingFileUri] = useState<string | null>(null);
   const [recordingTime, setRecordingTime] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [showDiscardModal, setShowDiscardModal] = useState(false);
@@ -37,6 +37,9 @@ export default function HomeScreen() {
     number | null
   >(null);
   const [loadingVocalizations, setLoadingVocalizations] = useState(false);
+  const [recordingSegments, setRecordingSegments] = useState<string[]>([]);
+  const [elapsedTimeBeforePause, setElapsedTimeBeforePause] = useState(0);
+  const [displayTime, setDisplayTime] = useState(0);
 
   const startTimeRef = useRef<number | null>(null);
   const notificationRef = useRef<string | null>(null);
@@ -65,13 +68,20 @@ export default function HomeScreen() {
     try {
       const startTimeStr = await AsyncStorage.getItem("recordingStartTime");
       const isRecording = await AsyncStorage.getItem("isRecording");
+      const savedElapsedTime = await AsyncStorage.getItem(
+        "elapsedTimeBeforePause"
+      );
 
       if (startTimeStr && isRecording === "true") {
         const startTime = parseInt(startTimeStr);
         startTimeRef.current = startTime;
 
-        const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
-        setRecordingTime(elapsedSeconds);
+        const elapsedTime = savedElapsedTime ? parseInt(savedElapsedTime) : 0;
+        setElapsedTimeBeforePause(elapsedTime);
+
+        const currentTime = Math.floor((Date.now() - startTime) / 1000);
+        setDisplayTime(currentTime);
+        setRecordingTime(currentTime);
 
         startTimer();
       }
@@ -116,16 +126,17 @@ export default function HomeScreen() {
   const setupNotifications = async () => {
     try {
       const { status, granted } = await Notifications.requestPermissionsAsync();
-      
-      if (status === 'denied') {
+
+      if (status === "denied") {
         showMessage({
           message: "Permissão Negada",
-          description: "As notificações foram desativadas. Por favor, ative nas configurações do dispositivo.",
+          description:
+            "As notificações foram desativadas. Por favor, ative nas configurações do dispositivo.",
           type: "warning",
         });
         return;
       }
-  
+
       if (granted) {
         if (Platform.OS === "android") {
           await Notifications.setNotificationChannelAsync("recording", {
@@ -136,10 +147,10 @@ export default function HomeScreen() {
             enableVibrate: false,
             enableLights: false,
             showBadge: false,
-            sound: null
+            sound: null,
           });
         }
-  
+
         await Notifications.setNotificationHandler({
           handleNotification: async () => ({
             shouldShowAlert: true,
@@ -152,7 +163,8 @@ export default function HomeScreen() {
       } else {
         showMessage({
           message: "Notificações Desativadas",
-          description: "Algumas funcionalidades podem ser limitadas sem permissão de notificação.",
+          description:
+            "Algumas funcionalidades podem ser limitadas sem permissão de notificação.",
           type: "warning",
         });
       }
@@ -192,21 +204,27 @@ export default function HomeScreen() {
   };
 
   const startTimer = async () => {
-    const startTime = Date.now();
-    startTimeRef.current = startTime;
-
-    await AsyncStorage.setItem("recordingStartTime", startTime.toString());
-    await AsyncStorage.setItem("isRecording", "true");
-
     BackgroundTimer.stopBackgroundTimer();
+
+    await AsyncStorage.setItem(
+      "recordingStartTime",
+      startTimeRef.current!.toString()
+    );
+    await AsyncStorage.setItem("isRecording", "true");
+    await AsyncStorage.setItem(
+      "elapsedTimeBeforePause",
+      elapsedTimeBeforePause.toString()
+    );
 
     BackgroundTimer.runBackgroundTimer(() => {
       if (startTimeRef.current) {
-        const elapsedSeconds = Math.floor(
+        const currentTime = Math.floor(
           (Date.now() - startTimeRef.current) / 1000
         );
-        setRecordingTime(elapsedSeconds);
-        updateNotification(elapsedSeconds);
+        const totalTime = currentTime;
+        setDisplayTime(totalTime);
+        setRecordingTime(totalTime);
+        updateNotification(totalTime);
       }
     }, 1000);
   };
@@ -231,25 +249,25 @@ export default function HomeScreen() {
       if (!notificationRef.current) {
         const identifier = await Notifications.scheduleNotificationAsync({
           content: {
-            title: 'Gravação em andamento',
+            title: "Gravação em andamento",
             body: `Tempo: ${formatTime(time)}`,
-            data: { type: 'recording' },
-            priority: Platform.OS === 'android' ? 'max' : undefined,
+            data: { type: "recording" },
+            priority: Platform.OS === "android" ? "max" : undefined,
             sound: false,
             sticky: true,
           },
           trigger: null,
         });
         notificationRef.current = identifier;
-        await AsyncStorage.setItem('currentNotificationId', identifier);
+        await AsyncStorage.setItem("currentNotificationId", identifier);
       } else {
         await Notifications.scheduleNotificationAsync({
           identifier: notificationRef.current,
           content: {
-            title: 'Gravação em andamento',
+            title: "Gravação em andamento",
             body: `Tempo: ${formatTime(time)}`,
-            data: { type: 'recording' },
-            priority: Platform.OS === 'android' ? 'max' : undefined,
+            data: { type: "recording" },
+            priority: Platform.OS === "android" ? "max" : undefined,
             sound: false,
             sticky: true,
           },
@@ -261,7 +279,7 @@ export default function HomeScreen() {
         message: "Erro",
         description: "Não foi possível atualizar a notificação",
         type: "danger",
-      })
+      });
     }
   };
 
@@ -326,8 +344,10 @@ export default function HomeScreen() {
       await newRecording.startAsync();
       setRecording(newRecording);
       setIsPaused(false);
+
+      startTimeRef.current = Date.now() - elapsedTimeBeforePause * 1000;
       startTimer();
-      updateNotification(0);
+      updateNotification(elapsedTimeBeforePause);
     } catch (error) {
       showMessage({
         message: "Erro ao gravar",
@@ -342,7 +362,10 @@ export default function HomeScreen() {
       if (recording) {
         await recording.stopAndUnloadAsync();
         const uri = recording.getURI();
-        setRecordingFileUri(uri);
+        if (uri) {
+          setRecordingSegments((prev) => [...prev, uri]);
+          setElapsedTimeBeforePause(displayTime);
+        }
         setRecording(null);
         stopTimer();
         setIsPaused(true);
@@ -361,11 +384,85 @@ export default function HomeScreen() {
     }
   };
 
-  const handleDiscard = () => {
-    setShowDiscardModal(false);
-    setRecordingFileUri(null);
+  const handleDiscard = async () => {
+    for (const uri of recordingSegments) {
+      try {
+        await FileSystem.deleteAsync(uri);
+      } catch (error) {
+        showMessage({
+          message: "Erro",
+          description: "Não foi possível descartar a gravação",
+          type: "danger",
+        });
+      }
+    }
+
+    setRecordingSegments([]);
+    setElapsedTimeBeforePause(0);
+    setDisplayTime(0);
     setRecordingTime(0);
     setIsPaused(false);
+    setShowDiscardModal(false);
+  };
+
+  const concatenateAudioSegments = async () => {
+    if (recordingSegments.length === 0) return null;
+    if (recordingSegments.length === 1) return recordingSegments[0];
+
+    try {
+      const tempDirectory = `${FileSystem.cacheDirectory}temp_audio/`;
+      await FileSystem.makeDirectoryAsync(tempDirectory, {
+        intermediates: true,
+      });
+
+      const finalPath = `${tempDirectory}final_recording_${Date.now()}.m4a`;
+      const fileList = `${tempDirectory}filelist.txt`;
+
+      const fileListContent = recordingSegments
+        .map((uri) => {
+          const cleanUri = uri.replace("file://", "");
+          return `file '${cleanUri}'`;
+        })
+        .join("\n");
+
+      await FileSystem.writeAsStringAsync(fileList, fileListContent);
+
+      const command = `-f concat -safe 0 -i ${fileList} -c copy ${finalPath}`;
+
+      const session = await FFmpegKit.execute(command);
+      const returnCode = await session.getReturnCode();
+
+      await FileSystem.deleteAsync(fileList);
+
+      if (returnCode.isValueSuccess()) {
+        for (const uri of recordingSegments) {
+          try {
+            await FileSystem.deleteAsync(uri);
+          } catch (error) {
+            showMessage({
+              message: "Erro",
+              description: "Não foi possível deletar o segmento de áudio",
+              type: "danger",
+            });
+          }
+        }
+        return finalPath;
+      } else {
+        showMessage({
+          message: "Erro",
+          description: "Falha ao juntar os segmentos de áudio",
+          type: "danger",
+        });
+        return recordingSegments[0];
+      }
+    } catch (error) {
+      showMessage({
+        message: "Erro",
+        description: "Não foi possível juntar os segmentos de áudio",
+        type: "danger",
+      });
+      return recordingSegments[0];
+    }
   };
 
   async function fetchVocalizations() {
@@ -408,7 +505,8 @@ export default function HomeScreen() {
       });
       return;
     }
-    if (!recordingFileUri) {
+
+    if (recordingSegments.length === 0) {
       showMessage({
         message: "Nenhuma gravação",
         description: "Não foi encontrada gravação para salvar.",
@@ -418,11 +516,14 @@ export default function HomeScreen() {
     }
 
     try {
+      const finalUri = await concatenateAudioSegments();
+      if (!finalUri) return;
+
       const filename = `recording_${Date.now()}.m4a`;
       const newUri = `${FileSystem.documentDirectory}${filename}`;
 
       await FileSystem.moveAsync({
-        from: recordingFileUri,
+        from: finalUri,
         to: newUri,
       });
 
@@ -434,7 +535,7 @@ export default function HomeScreen() {
       recordings.push({
         uri: newUri,
         timestamp: Date.now(),
-        duration: recordingTime,
+        duration: displayTime,
         vocalizationId: selectedVocalizationId,
         vocalizationName: vocalizations.find(
           (v) => v.id === selectedVocalizationId
@@ -444,10 +545,16 @@ export default function HomeScreen() {
 
       await AsyncStorage.setItem("recordings", JSON.stringify(recordings));
 
-      setRecordingFileUri(null);
+      setRecordingSegments([]);
+      setElapsedTimeBeforePause(0);
+      setDisplayTime(0);
       setRecordingTime(0);
       setIsPaused(false);
       setShowVocalizationModal(false);
+
+      await AsyncStorage.removeItem("recordingStartTime");
+      await AsyncStorage.removeItem("isRecording");
+      await AsyncStorage.removeItem("elapsedTimeBeforePause");
 
       router.push("/audios");
     } catch (error) {
@@ -461,7 +568,7 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.timer}>{formatTime(recordingTime)}</Text>
+      <Text style={styles.timer}>{formatTime(displayTime)}</Text>
 
       <View style={styles.controlContainer}>
         {isPaused && (
