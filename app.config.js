@@ -66,6 +66,7 @@ export default {
 
     plugins: [
       "expo-router",
+      "@config-plugins/ffmpeg-kit-react-native",
       [
         "expo-splash-screen",
         {
