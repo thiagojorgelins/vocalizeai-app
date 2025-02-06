@@ -49,7 +49,7 @@ export default function RootLayout() {
     <View style={{ flex: 1 }}>
       {isSplashVisible ? (
         <View style={styles.splashContainer}>
-          <Text style={styles.splashText}>CAUTA</Text>
+          <Text style={styles.splashText}>VocalizaAI</Text>
           <ActivityIndicator size="large" color="#0000ff" />
         </View>
       ) : null}

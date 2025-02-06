@@ -17,7 +17,7 @@ export function Header() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>CAUTA</Text>
+      <Text style={styles.title}>VocalizaAI</Text>
       <TouchableOpacity
         style={styles.button_user}
         onPress={() => router.push("/usuario/editar-usuario")}
