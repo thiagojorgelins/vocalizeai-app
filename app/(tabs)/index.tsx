@@ -477,7 +477,7 @@ export default function HomeScreen() {
     } catch (error: any) {
       showMessage({
         message: "Erro",
-        description: "Não foi possível carregar as vocalizações",
+        description: "Não foi possível carregar os rótulos de vocalizações",
         type: "danger",
       });
     } finally {
@@ -499,8 +499,8 @@ export default function HomeScreen() {
   const handleSaveAudio = async () => {
     if (!selectedVocalizationId) {
       showMessage({
-        message: "Vocalização não selecionada",
-        description: "Por favor, selecione uma vocalização.",
+        message: "Rótulo não selecionado",
+        description: "Por favor, selecione um rótulo de vocalização.",
         type: "warning",
       });
       return;
@@ -631,13 +631,13 @@ export default function HomeScreen() {
       >
         <View style={styles.overlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Selecione a Vocalização</Text>
+            <Text style={styles.modalTitle}>Selecione o Rótulo da Vocalização</Text>
 
             {loadingVocalizations ? (
               <ActivityIndicator size="large" color="#000" />
             ) : (
               <Select
-                label="Vocalização"
+                label="Rótulo"
                 selectedValue={selectedVocalizationId?.toString() || ""}
                 onValueChange={(itemValue) =>
                   setSelectedVocalizationId(Number(itemValue))

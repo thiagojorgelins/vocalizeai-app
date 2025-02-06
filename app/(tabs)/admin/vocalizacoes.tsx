@@ -144,7 +144,7 @@ export default function VocalizacoesScreen() {
   return (
     <View style={styles.container}>
       <ButtonCustom
-        title="Adicionar Vocalização"
+        title="Adicionar Rótulo de vocalização"
         onPress={handleAdd}
         style={{ marginBottom: 16, width: "100%" }}
       />
@@ -152,7 +152,7 @@ export default function VocalizacoesScreen() {
         data={vocalizacoes}
         renderItem={renderVocalizacoes}
         keyExtractor={(vocalizacao) => vocalizacao.id.toString()}
-        ListEmptyComponent={<Text>Não há vocalizações</Text>}
+        ListEmptyComponent={<Text>Não há rótulos de vocalizações</Text>}
       />
 
       <Modal
@@ -165,8 +165,8 @@ export default function VocalizacoesScreen() {
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>
               {selectedVocalizacao
-                ? "Editar Vocalização"
-                : "Adicionar Vocalização"}
+                ? "Editar Rótulo de Vocalização"
+                : "Adicionar Rótulo de Vocalização"}
             </Text>
 
             <Input
@@ -203,7 +203,7 @@ export default function VocalizacoesScreen() {
         visible={showConfirmModal}
         onCancel={() => setShowConfirmModal(false)}
         onConfirm={handleDelete}
-        message="Tem certeza que deseja deletar esta vocalização?"
+        message="Tem certeza que deseja deletar este rótulo?"
       />
     </View>
   );

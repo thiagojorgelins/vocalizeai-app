@@ -6,7 +6,7 @@ export default function AdminLayout() {
   return (
     <View style={styles.container}>
       <ButtonCustom
-        title="Gerenciar Vocalizações"
+        title="Gerenciar Rótulos de Vocalizações"
         onPress={() => router.push("/admin/vocalizacoes")}
         style={styles.btnSize}
         color="#000"
