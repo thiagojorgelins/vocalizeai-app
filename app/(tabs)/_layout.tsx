@@ -95,6 +95,15 @@ export default function TabLayout() {
             tabBarItemStyle: { display: role === "admin" ? "flex" : "none" },
           }}
         />
+        <Tabs.Screen
+          name="sobre"
+          options={{
+            title: "Sobre",
+            tabBarIcon: ({ color }) => (
+              <TabBarIcon name="info-outline" color={color} />
+            ),
+          }}
+        />
       </Tabs>
     </>
   );
