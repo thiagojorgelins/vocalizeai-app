@@ -124,11 +124,20 @@ const register = async (
   email: string,
   celular: string,
   senha: string,
-  confirmaSenha: string
+  confirmaSenha: string,
+  aceiteTermos: boolean
 ): Promise<boolean> => {
   if (!nome || !celular || !email || !senha || !confirmaSenha) {
     showMessage({
       message: "Todos os campos são obrigatórios.",
+      type: "warning",
+    });
+    return false;
+  }
+
+  if (!aceiteTermos) {
+    showMessage({
+      message: "É necessário aceitar os termos de uso e política de privacidade.",
       type: "warning",
     });
     return false;
@@ -151,7 +160,13 @@ const register = async (
   }
 
   try {
-    const response = await api.post("/auth/register", { nome, email, celular, senha });
+    const response = await api.post("/auth/register", { 
+      nome, 
+      email, 
+      celular, 
+      senha,
+      aceite_termos: aceiteTermos 
+    });
     if (response.status === 201) {
       return true;
     } else {

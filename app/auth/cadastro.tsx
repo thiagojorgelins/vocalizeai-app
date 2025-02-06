@@ -3,6 +3,7 @@ import ConfirmationModal from "@/components/ConfirmationModal";
 import Input from "@/components/Inputs/Input";
 import InputPassword from "@/components/Inputs/InputPassword";
 import Link from "@/components/Link";
+import TermsRadioButton from "@/components/TermsRadioButton";
 import { confirmRegistration, doLogin, register } from "@/services/authService";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -18,12 +19,14 @@ export default function CadastroUsuarioScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [codigoConfirmacao, setCodigoConfirmacao] = useState("");
+  const [termoAceite, setTermoAceite] = useState(false);
+
   const router = useRouter();
 
   async function handleRegister() {
     setIsLoading(true);
     try {
-      const isRegistered = await register(nome, email, celular, senha, confirmaSenha);
+      const isRegistered = await register(nome, email, celular, senha, confirmaSenha, termoAceite);
       if (isRegistered) {
         showMessage({
           message: "Cadastro realizado com sucesso! Verifique seu e-mail para confirmar o cadastro.",
@@ -61,7 +64,7 @@ export default function CadastroUsuarioScreen() {
       setIsLoading(false);
     }
   }
-
+  
   return (
     <ScrollView style={styles.container}>
       <Input
@@ -98,6 +101,7 @@ export default function CadastroUsuarioScreen() {
         value={confirmaSenha}
         onChangeText={setConfirmaSenha}
       />
+      <TermsRadioButton selected={true} onPress={setTermoAceite} style={{marginRight: 10}}/>
       {isLoading ? (
         <ActivityIndicator size="large" color="#0000ff" />
       ) : (
