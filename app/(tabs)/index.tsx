@@ -23,6 +23,7 @@ import {
 } from "react-native";
 import BackgroundTimer from "react-native-background-timer";
 import { showMessage } from "react-native-flash-message";
+import translateVocalization from "@/utils/TranslateVocalization";
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -251,7 +252,6 @@ export default function HomeScreen() {
           content: {
             title: "Gravação em andamento",
             body: `Tempo: ${formatTime(time)}`,
-            data: { type: "recording" },
             priority: Platform.OS === "android" ? "max" : undefined,
             sound: false,
             sticky: true,
@@ -568,60 +568,67 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.timer}>{formatTime(displayTime)}</Text>
+      <View style={styles.timerSection}>
+        <View style={styles.timerContainer}>
+          <Text style={styles.timerLabel}>Tempo de Gravação</Text>
+          <Text style={styles.timer}>{formatTime(displayTime)}</Text>
+          {recording && (
+            <View style={styles.recordingIndicator}>
+              <View style={styles.recordingDot} />
+              <Text style={styles.recordingText}>Gravando</Text>
+            </View>
+          )}
+        </View>
+      </View>
 
       <View style={styles.controlContainer}>
         {isPaused && (
-          <View style={styles.buttonContainer}>
-            <Pressable
-              onPress={() => setShowDiscardModal(true)}
-              style={[styles.button, styles.discardButton]}
-            >
-              <MaterialIcons name="close" size={48} color="white" />
-            </Pressable>
-            <Text style={styles.boldText}>Descartar</Text>
-          </View>
+          <Pressable
+            onPress={() => setShowDiscardModal(true)}
+            style={({ pressed }) => [
+              styles.controlButton,
+              styles.discardButton,
+              pressed && styles.buttonPressed
+            ]}
+          >
+            <MaterialIcons name="delete-outline" size={32} color="white" />
+            <Text style={styles.buttonText}>Descartar</Text>
+          </Pressable>
         )}
 
-        <View style={styles.buttonContainer}>
-          <Pressable
-            style={styles.button}
-            onPress={recording ? stopRecording : startRecording}
-          >
-            <MaterialIcons
-              name={recording ? "pause" : isPaused ? "play-arrow" : "mic"}
-              size={48}
-              color="white"
-            />
-          </Pressable>
-          <Text style={styles.boldText}>
-            {recording
-              ? "Pausar a gravação"
-              : isPaused
-              ? "Continuar"
-              : "Toque para iniciar a gravação"}
+        <Pressable
+          style={({ pressed }) => [
+            styles.controlButton,
+            styles.recordButton,
+            recording && styles.recordingButton,
+            pressed && styles.buttonPressed
+          ]}
+          onPress={recording ? stopRecording : startRecording}
+        >
+          <MaterialIcons
+            name={recording ? "pause" : isPaused ? "play-arrow" : "mic"}
+            size={40}
+            color="white"
+          />
+          <Text style={styles.buttonText}>
+            {recording ? "Pausar" : isPaused ? "Continuar" : "Gravar"}
           </Text>
-        </View>
+        </Pressable>
 
         {isPaused && (
-          <View style={styles.buttonContainer}>
-            <Pressable
-              onPress={openVocalizationModal}
-              style={[styles.button, styles.saveButton]}
-            >
-              <MaterialIcons name="save" size={48} color="white" />
-            </Pressable>
-            <Text style={styles.boldText}>Salvar</Text>
-          </View>
+          <Pressable
+            onPress={openVocalizationModal}
+            style={({ pressed }) => [
+              styles.controlButton,
+              styles.saveButton,
+              pressed && styles.buttonPressed
+            ]}
+          >
+            <MaterialIcons name="save" size={32} color="white" />
+            <Text style={styles.buttonText}>Salvar</Text>
+          </Pressable>
         )}
       </View>
-
-      <ConfirmationModal
-        visible={showDiscardModal}
-        onCancel={() => setShowDiscardModal(false)}
-        onConfirm={handleDiscard}
-        message="Tem certeza que deseja descartar a gravação?"
-      />
 
       <Modal
         visible={showVocalizationModal}
@@ -629,43 +636,54 @@ export default function HomeScreen() {
         animationType="slide"
         onRequestClose={closeVocalizationModal}
       >
-        <View style={styles.overlay}>
+        <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Selecione o Rótulo da Vocalização</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Selecionar Rótulo</Text>
+              <MaterialIcons 
+                name="close" 
+                size={24} 
+                color="#666"
+                onPress={closeVocalizationModal}
+                style={styles.modalClose}
+              />
+            </View>
 
             {loadingVocalizations ? (
-              <ActivityIndicator size="large" color="#000" />
+              <ActivityIndicator size="large" color="#2196F3" />
             ) : (
               <Select
-                label="Rótulo"
+                label="Tipo de Vocalização"
                 selectedValue={selectedVocalizationId?.toString() || ""}
                 onValueChange={(itemValue) =>
                   setSelectedVocalizationId(Number(itemValue))
                 }
                 options={vocalizations.map((voc) => ({
-                  label: voc.nome,
+                  label: translateVocalization[voc.nome] || voc.nome,
                   value: voc.id.toString(),
                 }))}
-                style={{ width: "100%" }}
               />
             )}
 
-            <View style={styles.buttonRow}>
+            <View style={styles.modalActions}>
               <ButtonCustom
-                title="Salvar"
+                title="Salvar Gravação"
                 onPress={handleSaveAudio}
-                style={{ width: "45%" }}
-              />
-              <ButtonCustom
-                title="Fechar"
-                onPress={closeVocalizationModal}
-                color="red"
-                style={{ width: "45%" }}
+                color="#2196F3"
+                style={styles.modalButton}
+                icon={<MaterialIcons name="save" size={20} color="#FFF" />}
               />
             </View>
           </View>
         </View>
       </Modal>
+
+      <ConfirmationModal
+        visible={showDiscardModal}
+        onCancel={() => setShowDiscardModal(false)}
+        onConfirm={handleDiscard}
+        message="Tem certeza que deseja descartar a gravação?"
+      />
     </View>
   );
 }
@@ -673,80 +691,136 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: '#F5F5F5',
+    paddingHorizontal: 20,
   },
-  inputContainer: {
-    width: "100%",
-    marginBottom: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+  timerSection: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  textInput: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    height: 40,
-    paddingHorizontal: 8,
-    width: 100,
-    textAlign: "center",
+  timerContainer: {
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    padding: 32,
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  timerLabel: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 8,
   },
   timer: {
-    fontSize: 36,
-    fontWeight: "bold",
-    marginBottom: 54,
+    fontSize: 48,
+    fontWeight: '700',
+    color: '#2196F3',
+    fontVariant: ['tabular-nums'],
+  },
+  recordingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  recordingDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#F44336',
+    marginRight: 8,
+  },
+  recordingText: {
+    color: '#F44336',
+    fontSize: 14,
+    fontWeight: '600',
   },
   controlContainer: {
-    flexDirection: "row",
-    alignItems: "flex-end",
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingBottom: 40,
+    gap: 20,
   },
-  buttonContainer: {
-    alignItems: "center",
-    marginHorizontal: 8,
+  controlButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: '#2196F3',
+    minWidth: 80,
   },
-  button: {
-    width: 80,
-    height: 80,
+  recordButton: {
+    backgroundColor: '#2196F3',
+    width: 100,
+    height: 100,
     borderRadius: 50,
-    backgroundColor: "#ff0000",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 4,
+  },
+  recordingButton: {
+    backgroundColor: '#F44336',
   },
   discardButton: {
-    backgroundColor: "gray",
+    backgroundColor: '#757575',
   },
   saveButton: {
-    backgroundColor: "green",
+    backgroundColor: '#4CAF50',
   },
-  boldText: {
-    fontWeight: "bold",
+  buttonPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.98 }],
   },
-  overlay: {
+  buttonText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  modalOverlay: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.4)",
-    padding: 20,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
   },
   modalContent: {
-    width: "100%",
-    maxWidth: 400,
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    padding: 20,
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 16,
-    textAlign: "center",
+    fontWeight: '600',
+    color: '#212121',
   },
-  buttonRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 20,
+  modalClose: {
+    padding: 4,
+  },
+  modalActions: {
+    marginTop: 24,
+  },
+  modalButton: {
+    marginVertical: 8,
   },
 });

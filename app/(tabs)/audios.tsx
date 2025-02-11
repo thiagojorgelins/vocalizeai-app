@@ -10,7 +10,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import { useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -21,6 +21,7 @@ import {
   View,
 } from "react-native";
 import { showMessage } from "react-native-flash-message";
+import translateVocalization from "@/utils/TranslateVocalization";
 
 export default function AudiosScreen() {
   const [recordings, setRecordings] = useState<AudioRecording[]>([]);
@@ -211,8 +212,8 @@ export default function AudiosScreen() {
         style={[
           styles.recordingItem,
           item.status === "sent"
-            ? { backgroundColor: "green" }
-            : { backgroundColor: "#D8D8D8" },
+            ? { backgroundColor: "#26ba2d" }
+            : { backgroundColor: "#F5F5F5" },
         ]}
       >
         <MaterialIcons
@@ -240,7 +241,8 @@ export default function AudiosScreen() {
                 item.status === "sent" && { color: "white" },
               ]}
             >
-              {item.vocalizationName}
+              {translateVocalization[item.vocalizationName] ||
+                item.vocalizationName}
             </Text>
             <Text
               style={[
@@ -252,9 +254,7 @@ export default function AudiosScreen() {
             </Text>
           </View>
         </View>
-        <TouchableOpacity
-          onPress={() => handlePlayAudio(item.uri)}
-        >
+        <TouchableOpacity onPress={() => handlePlayAudio(item.uri)}>
           <MaterialIcons
             name={playingUri === item.uri ? "pause" : "play-arrow"}
             size={32}
@@ -317,11 +317,14 @@ export default function AudiosScreen() {
                   )}
                 </Text>
                 <Text>Duração: {formatTime(selectedRecording.duration)}</Text>
-                <Text>Rótulo: {selectedRecording.vocalizationName}</Text>
+                <Text>
+                  Rótulo:{" "}
+                  {translateVocalization[selectedRecording.vocalizationName] ||
+                    selectedRecording.vocalizationName}
+                </Text>
               </View>
             )}
 
-            <Text style={{ fontWeight: "bold" }}>ID da Vocalização:</Text>
             {loadingVocalizations ? (
               <ActivityIndicator size="large" color="#000"></ActivityIndicator>
             ) : (
@@ -342,7 +345,7 @@ export default function AudiosScreen() {
                   }
                 }}
                 options={vocalizations.map((voc) => ({
-                  label: voc.nome,
+                  label: translateVocalization[voc.nome] || voc.nome,
                   value: voc.id.toString(),
                 }))}
                 style={{ width: "100%" }}
@@ -400,6 +403,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "bold",
     marginBottom: 20,
+    color: "#2C3E50",
   },
   emptyText: {
     textAlign: "center",
@@ -409,12 +413,13 @@ const styles = StyleSheet.create({
   },
   recordingItem: {
     flexDirection: "row",
-    marginBottom: 8,
+    marginBottom: 12,
     width: "100%",
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 8,
     justifyContent: "space-between",
     alignItems: "center",
+    elevation: 8,
   },
   recordingItemData: {
     width: "70%",

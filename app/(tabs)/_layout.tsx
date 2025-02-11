@@ -2,8 +2,11 @@ import { Header } from "@/components/Header";
 import { getRole } from "@/services/util";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { StyleSheet } from "react-native";
+import { showMessage } from "react-native-flash-message";
+import { getUser } from "@/services/usuarioService";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof MaterialIcons>["name"];
@@ -14,6 +17,19 @@ function TabBarIcon(props: {
 export default function TabLayout() {
   const [role, setRole] = useState<string | null>(null);
 
+  const loadUserData = useCallback(async () => {
+      try {
+        const userData = await getUser();
+        AsyncStorage.setItem("username", userData.nome);
+      } catch (error: any) {
+        showMessage({
+          message: "Não foi possível carregar os dados do usuário.",
+          type: "danger",
+        });
+      }
+    }, []);
+
+
   useEffect(() => {
     const fetchRole = async () => {
       try {
@@ -23,7 +39,7 @@ export default function TabLayout() {
         console.error("Erro ao buscar a role do AsyncStorage", error);
       }
     };
-
+    loadUserData()
     fetchRole();
   }, []);
 
@@ -39,6 +55,7 @@ export default function TabLayout() {
           headerShown: false,
           tabBarStyle: { ...style.tabBar },
           tabBarLabelStyle: { ...style.tabBarLabel },
+          tabBarHideOnKeyboard: true,
         }}
       >
         <Tabs.Screen
@@ -116,7 +133,10 @@ const style = StyleSheet.create({
     justifyContent: "center",
     height: 64,
     padding: 8,
-    backgroundColor: "#D8D8D8",
+    backgroundColor: '#f5f5f5',
+    borderTopWidth: 1,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
     color: "white",
   },
   tabBarLabel: {
