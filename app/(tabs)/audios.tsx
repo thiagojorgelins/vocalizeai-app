@@ -306,59 +306,82 @@ export default function AudiosScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Opções da Gravação</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Opções da Gravação</Text>
+              <TouchableOpacity
+                onPress={() => setShowOptionsModal(false)}
+                style={styles.modalClose}
+              >
+                <MaterialIcons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
 
             {selectedRecording && (
-              <View style={{ marginBottom: 16 }}>
-                <Text>
-                  Data/Hora:{" "}
-                  {new Date(selectedRecording.timestamp).toLocaleString(
-                    "pt-BR"
-                  )}
-                </Text>
-                <Text>Duração: {formatTime(selectedRecording.duration)}</Text>
-                <Text>
-                  Rótulo:{" "}
-                  {translateVocalization[selectedRecording.vocalizationName] ||
-                    selectedRecording.vocalizationName}
-                </Text>
+              <View style={styles.recordingInfo}>
+                <View style={styles.infoRow}>
+                  <MaterialIcons name="access-time" size={20} color="#666" />
+                  <Text style={styles.infoText}>
+                    {new Date(selectedRecording.timestamp).toLocaleString(
+                      "pt-BR"
+                    )}
+                  </Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <MaterialIcons name="timer" size={20} color="#666" />
+                  <Text style={styles.infoText}>
+                    {formatTime(selectedRecording.duration)}
+                  </Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <MaterialIcons name="label" size={20} color="#666" />
+                  <Text style={styles.infoText}>
+                    {translateVocalization[
+                      selectedRecording.vocalizationName
+                    ] || selectedRecording.vocalizationName}
+                  </Text>
+                </View>
               </View>
             )}
 
             {loadingVocalizations ? (
-              <ActivityIndicator size="large" color="#000"></ActivityIndicator>
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#2196F3" />
+              </View>
             ) : (
-              <Select
-                label="Vocalização"
-                selectedValue={editVocalizationId}
-                onValueChange={(value) => {
-                  setEditVocalizationId(value);
-                  const vocalization = vocalizations.find(
-                    (v) => v.id === parseInt(value)
-                  );
-                  if (selectedRecording && vocalization) {
-                    setSelectedRecording({
-                      ...selectedRecording,
-                      vocalizationId: vocalization.id,
-                      vocalizationName: vocalization.nome,
-                    });
-                  }
-                }}
-                options={vocalizations.map((voc) => ({
-                  label: translateVocalization[voc.nome] || voc.nome,
-                  value: voc.id.toString(),
-                }))}
-                style={{ width: "100%" }}
-              />
+              <View style={styles.selectContainer}>
+                <Select
+                  label="Vocalização"
+                  selectedValue={editVocalizationId}
+                  onValueChange={(value) => {
+                    setEditVocalizationId(value);
+                    const vocalization = vocalizations.find(
+                      (v) => v.id === parseInt(value)
+                    );
+                    if (selectedRecording && vocalization) {
+                      setSelectedRecording({
+                        ...selectedRecording,
+                        vocalizationId: vocalization.id,
+                        vocalizationName: vocalization.nome,
+                      });
+                    }
+                  }}
+                  options={vocalizations.map((voc) => ({
+                    label: translateVocalization[voc.nome] || voc.nome,
+                    value: voc.id.toString(),
+                  }))}
+                />
+              </View>
             )}
-            <View style={styles.buttonRow}>
+
+            <View style={styles.modalActions}>
               <ButtonCustom
                 title="Atualizar Rótulo"
                 onPress={() => setShowUpdateConfirmModal(true)}
+                color="#2196F3"
+                style={styles.actionButton}
+                icon={<MaterialIcons name="edit" size={20} color="#FFF" />}
               />
-            </View>
 
-            <View style={styles.buttonRow}>
               <ButtonCustom
                 title="Enviar Áudio"
                 onPress={() =>
@@ -368,23 +391,19 @@ export default function AudiosScreen() {
                     selectedRecording.uri
                   )
                 }
-                color="green"
+                color="#4CAF50"
+                style={styles.actionButton}
+                icon={
+                  <MaterialIcons name="cloud-upload" size={20} color="#FFF" />
+                }
               />
-            </View>
 
-            <View style={styles.buttonRow}>
               <ButtonCustom
                 title="Excluir áudio"
                 onPress={() => setShowConfirmDeleteModal(true)}
-                color="red"
-              />
-            </View>
-
-            <View style={[styles.buttonRow, { marginTop: 20 }]}>
-              <ButtonCustom
-                title="Fechar"
-                onPress={() => setShowOptionsModal(false)}
-                color="black"
+                color="#F44336"
+                style={styles.actionButton}
+                icon={<MaterialIcons name="delete" size={20} color="#FFF" />}
               />
             </View>
           </View>
@@ -419,7 +438,7 @@ const styles = StyleSheet.create({
     padding: 8,
     justifyContent: "space-between",
     alignItems: "center",
-    elevation: 8,
+    boxShadow: "0px 2px 4px rgba(0,0,0,0.2)",
   },
   recordingItemData: {
     width: "70%",
@@ -429,23 +448,57 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
   },
   modalContent: {
-    width: "80%",
-    backgroundColor: "white",
-    borderRadius: 10,
-    padding: 20,
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 12,
-    textAlign: "center",
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#212121',
   },
-  buttonRow: {
-    marginVertical: 5,
+  modalClose: {
+    padding: 4,
+  },
+  recordingInfo: {
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
+  },
+  infoText: {
+    fontSize: 16,
+    color: '#666',
+    flex: 1,
+  },
+  loadingContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  selectContainer: {
+    marginBottom: 20,
+  },
+  modalActions: {
+    gap: 12,
+  },
+  actionButton: {
+    marginVertical: 0,
   },
 });
