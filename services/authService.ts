@@ -72,6 +72,16 @@ const doLogin = async (email: string, senha: string): Promise<string> => {
         role: payload.role!,
         sub: payload.sub,
       });
+      
+      try {
+        const userResponse = await api.get(`/usuarios/${payload.sub}`, {
+          headers: { Authorization: `Bearer ${access_token}` },
+        });
+        await AsyncStorage.setItem("username", userResponse.data.nome);
+      } catch (error) {
+        await AsyncStorage.setItem("username", "Usuário");
+      }
+
       await AsyncStorage.multiSet([
         ["email", email],
         ["senha", senha],
@@ -202,11 +212,10 @@ const confirmRegistration = async (email: string, codigoConfirmacao: string): Pr
 }
 
 const doLogout = async (): Promise<void> => {
-  await AsyncStorage.multiRemove(["token", "tokenExpires", "role", "usuarioId", "email", "senha"]);
+  await AsyncStorage.multiRemove(["token", "tokenExpires", "role", "usuarioId", "email", "senha", "username"]);
   stopTokenUpdateRoutine();
   router.push("/auth/login");
 };
-
 
 const requestPasswordReset = async (email: string): Promise<void> => {
   try {
