@@ -17,29 +17,18 @@ function TabBarIcon(props: {
 export default function TabLayout() {
   const [role, setRole] = useState<string | null>(null);
 
-  const loadUserData = useCallback(async () => {
-      try {
-        const userData = await getUser();
-        AsyncStorage.setItem("username", userData.nome);
-      } catch (error: any) {
-        showMessage({
-          message: "Não foi possível carregar os dados do usuário.",
-          type: "danger",
-        });
-      }
-    }, []);
-
-
   useEffect(() => {
     const fetchRole = async () => {
       try {
         const storedRole = await getRole();
         setRole(storedRole);
       } catch (error) {
-        console.error("Erro ao buscar a role do AsyncStorage", error);
+        showMessage({
+          message: "Erro ao buscar a role do AsyncStorage",
+          type: "danger",
+        })
       }
     };
-    loadUserData()
     fetchRole();
   }, []);
 
