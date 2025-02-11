@@ -50,6 +50,15 @@ export const updateUser = async (data: UsuarioUpdate): Promise<void> => {
   });
 };
 
+export const updateUserAdmin = async (data: UsuarioUpdate): Promise<void> => {
+  const token = await getToken();
+  const userId = await getUserId();
+  if (!userId) throw new Error("Usuário não autenticado");
+
+  await api.patch(`/usuarios/${data.id}`, data, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+};
 
 export const deleteUser = async (id: any): Promise<void> => {
   const token = await getToken();
