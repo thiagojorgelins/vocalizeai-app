@@ -2,8 +2,8 @@ import 'dotenv/config';
 
 export default {
   expo: {
-    name: "cauta-app",
-    slug: "cauta-app",
+    name: "VocalizaAI",
+    slug: "vocalizaai",
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
@@ -12,7 +12,7 @@ export default {
     newArchEnabled: true,
     
     ios: {
-      bundleIdentifier: "com.thiagolins.cautaapp",
+      bundleIdentifier: "com.thiagolins.vocalizaai",
       supportsTablet: true,
       infoPlist: {
         NSAppTransportSecurity: { 
@@ -28,13 +28,12 @@ export default {
         NSUserNotificationUsageDescription: "Precisamos enviar notificações para manter você informado sobre o status da gravação.",
       }
     },
-
     android: {
       adaptiveIcon: {
         foregroundImage: "./assets/images/adaptive-icon.png",
         backgroundColor: "#ffffff"
       },
-      package: "com.thiagolins.cautaapp",
+      package: "com.thiagolins.vocalizaai",
       permissions: [
         "RECORD_AUDIO",
         "FOREGROUND_SERVICE",
