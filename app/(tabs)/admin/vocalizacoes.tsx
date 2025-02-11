@@ -291,8 +291,6 @@ export default function VocalizacoesScreen() {
               <ButtonCustom
                 title="Salvar"
                 onPress={handleSave}
-                color="#2196F3"
-                style={styles.modalButton}
                 icon={<MaterialIcons name="save" size={20} color="#FFF" />}
                 disabled={isLoading}
               />
@@ -392,6 +390,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 24,
+    gap: 16
   },
   modalHeader: {
     flexDirection: 'row',
@@ -414,8 +413,5 @@ const styles = StyleSheet.create({
   },
   modalActions: {
     marginTop: 24,
-  },
-  modalButton: {
-    marginVertical: 8,
   },
 });
