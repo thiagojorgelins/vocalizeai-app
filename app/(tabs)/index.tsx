@@ -754,7 +754,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 16,
     backgroundColor: '#2196F3',
-    minWidth: 80,
+    minWidth: 96,
   },
   recordButton: {
     backgroundColor: '#2196F3',
