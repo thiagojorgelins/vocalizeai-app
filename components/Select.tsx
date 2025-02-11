@@ -9,7 +9,7 @@ export default function Select({
   onValueChange,
   options,
   style,
-  itemStyle
+  
 }: SelectProps) {
   return (
     <View style={[styles.container, style]}>
@@ -19,7 +19,6 @@ export default function Select({
           selectedValue={selectedValue}
           onValueChange={onValueChange}
           style={styles.picker}
-          itemStyle={[styles.pickerItem, itemStyle]}
         >
           {options.map((option) => (
             <Picker.Item
@@ -46,7 +45,7 @@ const styles = StyleSheet.create({
   pickerContainer: {
     borderWidth: 1,
     borderColor: "#000",
-    borderRadius: 8,
+    borderRadius: 24,
     backgroundColor: "#fff",
     overflow: "hidden",
   },
@@ -54,8 +53,4 @@ const styles = StyleSheet.create({
     height: 56,
     width: "100%",
   },
-  pickerItem: {
-    fontSize: 16,
-    color: "#000",
-  }
 });
