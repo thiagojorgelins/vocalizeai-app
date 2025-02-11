@@ -7,12 +7,11 @@ export const styles = StyleSheet.create({
   },
   inputContainer: {
     borderWidth: 1,
-    marginVertical: 10,
     backgroundColor: "#fff",
-    borderRadius: 8,
+    borderRadius: 24,
   },
   input: {
-    padding: 10,
+    padding: 16,
     fontSize: 16,
     minHeight: 56
   },
@@ -21,13 +20,12 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    marginVertical: 10,
     backgroundColor: "#fff",
-    borderRadius: 8,
+    borderRadius: 24,
   },
   passwordInput: {
     flex: 1,
-    padding: 10,
+    padding: 16,
     fontSize: 16,
   },
   icon: {
