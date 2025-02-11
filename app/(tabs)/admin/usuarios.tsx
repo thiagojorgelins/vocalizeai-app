@@ -1,7 +1,7 @@
 import ButtonCustom from "@/components/Button";
 import ConfirmationModal from "@/components/ConfirmationModal";
 import Input from "@/components/Inputs/Input";
-import { deleteUser, getAllUsers, updateUser } from "@/services/usuarioService";
+import { deleteUser, getAllUsers, updateUserAdmin } from "@/services/usuarioService";
 import { Usuario } from "@/types/Usuario";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
@@ -25,6 +25,7 @@ export default function UsuariosScreen() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [nome, setNome] = useState("");
   const [celular, setCelular] = useState("");
+  const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const fetchUsuarios = useCallback(async () => {
@@ -52,6 +53,7 @@ export default function UsuariosScreen() {
   const handleEdit = (usuario: any) => {
     setSelectedUsuario(usuario);
     setNome(usuario.nome || "");
+    setEmail(usuario.email || "");
     setCelular(usuario.celular || "");
     setShowModal(true);
   };
@@ -81,7 +83,7 @@ export default function UsuariosScreen() {
         celular: celular.trim(),
       };
   
-      await updateUser(updateData);
+      await updateUserAdmin(updateData);
   
       showMessage({
         message: "Sucesso",
@@ -209,6 +211,13 @@ export default function UsuariosScreen() {
               value={nome}
               onChangeText={setNome}
               editable={!isLoading}
+            />
+            <Input
+              label="Email"
+              value={email}
+              onChangeText={setEmail}
+              editable={!isLoading}
+              leftIcon={<MaterialIcons name="email" size={20} color="#666" />}
             />
             <Input
               label="Celular"
