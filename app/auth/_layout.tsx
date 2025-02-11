@@ -10,34 +10,38 @@ export default function AuthLayout() {
       }}
     >
       <Stack.Screen
-        name="login"
+        name="login"      
         options={{
-          title: "Login",
           headerBackVisible: false,
+          headerShown: false
         }}
       />
       <Stack.Screen
         name="cadastro"
         options={{
-          title: "Cadastro Usuário",
+          headerBackVisible: false,
+          headerShown: false,
         }}
       />
       <Stack.Screen
         name="esqueci-senha"
         options={{
-          title: "Recuperar Senha",
+          headerBackVisible: false,
+          headerShown: false,
         }}
       />
       <Stack.Screen
         name="trocar-senha"
         options={{
-          title: "Trocar Senha",
+          headerBackVisible: false,
+          headerShown: false,
         }}
       />
       <Stack.Screen
         name="cadastro-participante"
         options={{
-          title: "Criar Parcipante",
+          headerBackVisible: false,
+          headerShown: false
         }}
       />
     </Stack>
