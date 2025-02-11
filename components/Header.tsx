@@ -1,23 +1,19 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
-import { 
-  StyleSheet, 
-  Text, 
-  TouchableOpacity, 
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  StyleSheet,
+  Text,
+  TouchableOpacity,
   View,
   Platform,
-  StatusBar 
+  StatusBar,
 } from "react-native";
 
 export function Header() {
   const [username, setUsername] = useState("");
   const router = useRouter();
-    
-  useEffect(() => {
-    loadUsername();
-  }, []);
 
   const loadUsername = async () => {
     try {
@@ -29,22 +25,30 @@ export function Header() {
     }
   };
 
+  useFocusEffect(
+    useCallback(() => {
+      loadUsername();
+    }, [loadUsername])
+  );
+  
   return (
     <View style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.titleContainer}>
           <Text style={styles.title}>VocalizaAI</Text>
         </View>
-        
+
         <TouchableOpacity
           style={styles.userButton}
           activeOpacity={0.7}
           onPress={() => router.push("/usuario/editar-usuario")}
         >
-          <Text style={styles.username} numberOfLines={1}>{username}</Text>
-          <Ionicons 
-            name="person-circle-outline" 
-            size={28} 
+          <Text style={styles.username} numberOfLines={1}>
+            {username}
+          </Text>
+          <Ionicons
+            name="person-circle-outline"
+            size={28}
             color="#444"
             style={styles.icon}
           />
@@ -56,8 +60,8 @@ export function Header() {
 
 const styles = StyleSheet.create({
   safeArea: {
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
-    backgroundColor: '#F5F5F5',
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+    backgroundColor: "#F5F5F5",
   },
   container: {
     flexDirection: "row",
@@ -65,9 +69,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: '#F5F5F5',
+    backgroundColor: "#F5F5F5",
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    borderBottomColor: "#E0E0E0",
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -92,14 +96,14 @@ const styles = StyleSheet.create({
     marginTop: -2,
   },
   userButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFF",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: "#E0E0E0",
     maxWidth: 160,
   },
   username: {
@@ -110,5 +114,5 @@ const styles = StyleSheet.create({
   },
   icon: {
     marginLeft: 2,
-  }
+  },
 });

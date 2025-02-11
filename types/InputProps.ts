@@ -12,4 +12,5 @@ export interface InputProps {
     multiline?: boolean;
     editable?: boolean;
     leftIcon?: React.ReactNode;
+    numberOfLines?: number;
 }

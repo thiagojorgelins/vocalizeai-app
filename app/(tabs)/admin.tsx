@@ -9,13 +9,11 @@ export default function AdminLayout() {
         title="Gerenciar Rótulos de Vocalizações"
         onPress={() => router.push("/admin/vocalizacoes")}
         style={styles.btnSize}
-        color="#000"
       />
       <ButtonCustom
         title="Gerenciar Usuários"
         onPress={() => router.push("/admin/usuarios")}
         style={styles.btnSize}
-        color="#000"
       />
     </View>
   );

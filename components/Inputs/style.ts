@@ -14,7 +14,7 @@ export const styles = StyleSheet.create({
   input: {
     padding: 10,
     fontSize: 16,
-    height: 56
+    minHeight: 56
   },
   passwordContainer: {
     height: 56,

@@ -1,5 +1,6 @@
 export interface UsuarioUpdate {
-    email: string;
-    nome: string;
-    celular: string;
+  id?: number;
+  nome: string;
+  email? : string;
+  celular: string;
 }
