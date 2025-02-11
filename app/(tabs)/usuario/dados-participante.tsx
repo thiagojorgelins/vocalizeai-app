@@ -13,11 +13,11 @@ import { ParticipantePayload } from "@/types/ParticipantePayload";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
-import { 
-  ScrollView, 
-  StyleSheet, 
-  Text, 
-  View, 
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
   Platform,
   KeyboardAvoidingView,
   TouchableOpacity,
@@ -59,7 +59,7 @@ export default function DadosParticipanteScreen() {
         description: errorMessage,
         type: "danger",
         duration: 3000,
-        icon: "danger"
+        icon: "danger",
       });
     }
   }, []);
@@ -86,7 +86,7 @@ export default function DadosParticipanteScreen() {
           description: "Dados do participante atualizados.",
           type: "success",
           duration: 3000,
-          icon: "success"
+          icon: "success",
         });
       } else {
         await createParticipante(payload);
@@ -95,7 +95,7 @@ export default function DadosParticipanteScreen() {
           description: "Participante criado com sucesso!",
           type: "success",
           duration: 3000,
-          icon: "success"
+          icon: "success",
         });
         router.replace("/usuario/editar-usuario");
       }
@@ -110,17 +110,17 @@ export default function DadosParticipanteScreen() {
         description: errorMessage,
         type: "danger",
         duration: 3000,
-        icon: "danger"
+        icon: "danger",
       });
     }
   }
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
     >
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
       >
@@ -134,7 +134,7 @@ export default function DadosParticipanteScreen() {
         <View style={styles.card}>
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Informações do Participante</Text>
-            
+
             <Input
               label="Idade"
               placeholder="Idade do Participante"
@@ -143,7 +143,7 @@ export default function DadosParticipanteScreen() {
               onChangeText={setIdade}
               leftIcon={<MaterialIcons name="cake" size={20} color="#666" />}
             />
-            
+
             <Select
               label="Gênero"
               selectedValue={genero}
@@ -153,7 +153,7 @@ export default function DadosParticipanteScreen() {
                 { label: "Feminino", value: "Feminino" },
               ]}
             />
-            
+
             <Select
               label="Nível de Suporte"
               selectedValue={nivelSuporte}
@@ -164,7 +164,7 @@ export default function DadosParticipanteScreen() {
                 { label: "Nível 3", value: "3" },
               ]}
             />
-            
+
             <Select
               label="Quantidade de Palavras"
               selectedValue={qtdPalavras}
@@ -180,28 +180,25 @@ export default function DadosParticipanteScreen() {
 
           <View style={styles.actions}>
             <ButtonCustom
-              title={participantId ? "Atualizar Participante" : "Criar Participante"}
+              title={
+                participantId ? "Atualizar Participante" : "Criar Participante"
+              }
               onPress={() => setModalVisible(true)}
-              color="#2196F3"
-              style={styles.mainButton}
               icon={<MaterialIcons name="save" size={20} color="#FFF" />}
             />
-
-            <TouchableOpacity
-              style={styles.linkButton}
+            <ButtonCustom
+              title="Voltar para Dados do Usuário"
+              variant="secondary"
               onPress={() => router.push("/usuario/editar-usuario")}
-            >
-              <MaterialIcons name="arrow-back" size={20} color="#666" />
-              <Text style={styles.linkText}>Voltar para Dados do Usuário</Text>
-            </TouchableOpacity>
+              icon={<MaterialIcons name="arrow-back" size={20} color="#FFF" />}
+            />
 
-            <TouchableOpacity
-              style={styles.logoutButton}
+            <ButtonCustom
+              title="Sair da Conta"
               onPress={doLogout}
-            >
-              <MaterialIcons name="logout" size={20} color="#D32F2F" />
-              <Text style={styles.logoutText}>Sair da Conta</Text>
-            </TouchableOpacity>
+              icon={<MaterialIcons name="logout" size={20} color="#D32F2F" />}
+              variant="danger"
+            />
           </View>
         </View>
       </ScrollView>
@@ -221,30 +218,30 @@ export default function DadosParticipanteScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: "#F5F5F5",
   },
   scrollView: {
     flex: 1,
   },
   header: {
-    alignItems: 'center',
+    alignItems: "center",
     padding: 24,
     gap: 12,
   },
   title: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#212121',
+    fontWeight: "700",
+    color: "#212121",
     letterSpacing: 0.25,
   },
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
     margin: 16,
     padding: 20,
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
+        shadowColor: "#000",
         shadowOffset: {
           width: 0,
           height: 2,
@@ -258,12 +255,13 @@ const styles = StyleSheet.create({
     }),
   },
   section: {
+    gap: 16,
     marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#424242',
+    fontWeight: "600",
+    color: "#424242",
     marginBottom: 16,
   },
   actions: {
@@ -271,35 +269,33 @@ const styles = StyleSheet.create({
   },
   mainButton: {
     height: 48,
-    borderRadius: 24,
   },
   linkButton: {
-    borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     padding: 12,
-    borderRadius: 24,
-    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+    backgroundColor: "#F5F5F5",
   },
   linkText: {
     marginLeft: 8,
     fontSize: 16,
-    color: '#666',
-    fontWeight: '500',
+    color: "#666",
+    fontWeight: "500",
   },
   logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     padding: 12,
     borderRadius: 8,
-    backgroundColor: '#FFF5F5',
+    backgroundColor: "#FFF5F5",
   },
   logoutText: {
     marginLeft: 8,
     fontSize: 16,
-    color: '#D32F2F',
-    fontWeight: '500',
+    color: "#D32F2F",
+    fontWeight: "500",
   },
 });

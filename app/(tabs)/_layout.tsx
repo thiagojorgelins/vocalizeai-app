@@ -133,10 +133,10 @@ const style = StyleSheet.create({
     justifyContent: "center",
     height: 64,
     padding: 8,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#FFE',
     borderTopWidth: 1,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     color: "white",
   },
   tabBarLabel: {

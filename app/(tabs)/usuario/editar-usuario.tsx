@@ -6,11 +6,11 @@ import { getUser, updateUser } from "@/services/usuarioService";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
-import { 
-  ScrollView, 
-  StyleSheet, 
-  Text, 
-  View, 
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
   Platform,
   KeyboardAvoidingView,
   TouchableOpacity,
@@ -35,7 +35,7 @@ export default function EditarUsuarioScreen() {
         message: "Não foi possível carregar os dados do usuário.",
         type: "danger",
         duration: 3000,
-        icon: "danger"
+        icon: "danger",
       });
     }
   }, []);
@@ -54,7 +54,7 @@ export default function EditarUsuarioScreen() {
         description: "Dados do usuário atualizados.",
         type: "success",
         duration: 3000,
-        icon: "success"
+        icon: "success",
       });
       setModalVisible(false);
     } catch (error: any) {
@@ -67,17 +67,17 @@ export default function EditarUsuarioScreen() {
         description: errorMessage,
         type: "danger",
         duration: 3000,
-        icon: "danger"
+        icon: "danger",
       });
     }
   }
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
     >
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
       >
@@ -89,15 +89,17 @@ export default function EditarUsuarioScreen() {
         <View style={styles.card}>
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Informações Pessoais</Text>
-            
+
             <Input
               label="Nome"
               placeholder="Informe seu nome"
               value={nome}
               onChangeText={setNome}
-              leftIcon={<MaterialIcons name="person-outline" size={20} color="#666" />}
+              leftIcon={
+                <MaterialIcons name="person-outline" size={20} color="#666" />
+              }
             />
-            
+
             <Input
               label="Email"
               placeholder="Informe seu email"
@@ -106,7 +108,7 @@ export default function EditarUsuarioScreen() {
               leftIcon={<MaterialIcons name="email" size={20} color="#666" />}
               keyboardType="email-address"
             />
-            
+
             <Input
               label="Celular"
               mask="(99) 99999-9999"
@@ -114,7 +116,9 @@ export default function EditarUsuarioScreen() {
               placeholder="Informe seu celular"
               onChangeText={setCelular}
               keyboardType="phone-pad"
-              leftIcon={<MaterialIcons name="phone-android" size={20} color="#666" />}
+              leftIcon={
+                <MaterialIcons name="phone-android" size={20} color="#666" />
+              }
             />
           </View>
 
@@ -127,21 +131,19 @@ export default function EditarUsuarioScreen() {
               icon={<MaterialIcons name="save" size={20} color="#FFF" />}
             />
 
-            <TouchableOpacity
-              style={styles.linkButton}
+            <ButtonCustom
+              title="Dados do Participante"
               onPress={() => router.push("/usuario/dados-participante")}
-            >
-              <MaterialIcons name="person-add" size={20} color="#666" />
-              <Text style={styles.linkText}>Dados do Participante</Text>
-            </TouchableOpacity>
+              icon={<MaterialIcons name="person-add" size={20} color="#666" />}
+              variant="secondary"
+            />
 
-            <TouchableOpacity
-              style={styles.logoutButton}
+            <ButtonCustom
+              title="Sair da Conta"
               onPress={doLogout}
-            >
-              <MaterialIcons name="logout" size={20} color="#D32F2F" />
-              <Text style={styles.logoutText}>Sair da Conta</Text>
-            </TouchableOpacity>
+              icon={<MaterialIcons name="logout" size={20} color="#D32F2F" />}
+              variant="danger"
+            />
           </View>
         </View>
       </ScrollView>
@@ -159,49 +161,47 @@ export default function EditarUsuarioScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: "#F5F5F5",
   },
   scrollView: {
     flex: 1,
   },
   header: {
-    alignItems: 'center',
+    alignItems: "center",
     padding: 24,
     gap: 12,
   },
   title: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#212121',
+    fontWeight: "700",
+    color: "#212121",
     letterSpacing: 0.25,
   },
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
     margin: 16,
     padding: 20,
+  },
+  section: {
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
-        shadowOffset: {
-          width: 0,
-          height: 2,
-        },
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
       },
       android: {
-        elevation: 3,
+        elevation: 4,
       },
     }),
-  },
-  section: {
+    gap: 16,
     marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#424242',
+    fontWeight: "600",
+    color: "#424242",
     marginBottom: 16,
   },
   actions: {
@@ -209,35 +209,19 @@ const styles = StyleSheet.create({
   },
   mainButton: {
     height: 48,
-    borderRadius: 24,
-  },
-  linkButton: {
-    borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 12,
-    borderRadius: 24,
-    backgroundColor: '#F5F5F5',
-  },
-  linkText: {
-    marginLeft: 8,
-    fontSize: 16,
-    color: '#666',
-    fontWeight: '500',
   },
   logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     padding: 12,
     borderRadius: 8,
-    backgroundColor: '#FFF5F5',
+    backgroundColor: "#FFF5F5",
   },
   logoutText: {
     marginLeft: 8,
     fontSize: 16,
-    color: '#D32F2F',
-    fontWeight: '500',
+    color: "#D32F2F",
+    fontWeight: "500",
   },
 });

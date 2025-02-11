@@ -2,10 +2,23 @@ import ButtonCustom from "@/components/Button";
 import ConfirmationModal from "@/components/ConfirmationModal";
 import Input from "@/components/Inputs/Input";
 import InputPassword from "@/components/Inputs/InputPassword";
-import { confirmRegistration, doLogin, sendConfirmationCode } from "@/services/authService";
+import {
+  confirmRegistration,
+  doLogin,
+  sendConfirmationCode,
+} from "@/services/authService";
+import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { showMessage } from "react-native-flash-message";
 
 export default function LoginScreen() {
@@ -84,38 +97,67 @@ export default function LoginScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <Input
-        label="Email"
-        placeholder="Informe seu Email"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-      />
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={styles.container}
+    >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <MaterialIcons name="login" size={40} color="#2196F3" />
+          <Text style={styles.title}>Login</Text>
+        </View>
 
-      <InputPassword
-        label="Senha"
-        placeholder="Informe sua Senha"
-        value={password}
-        onChangeText={setPassword}
-      />
+        <View style={styles.card}>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Acesse sua conta</Text>
 
-      <TouchableOpacity onPress={() => router.push("/auth/esqueci-senha")}>
-        <Text style={styles.linkText}>Esqueci minha senha</Text>
-      </TouchableOpacity>
+            <Input
+              label="Email"
+              placeholder="Informe seu Email"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              leftIcon={<MaterialIcons name="email" size={20} color="#666" />}
+            />
 
-      <ButtonCustom
-        title="Login"
-        onPress={handleLogin}
-        color="black"
-        style={{
-          margin: 24,
-        }}
-      />
+            <InputPassword
+              label="Senha"
+              placeholder="Informe sua Senha"
+              value={password}
+              onChangeText={setPassword}
+              leftIcon={<MaterialIcons name="lock" size={20} color="#666" />}
+            />
 
-      <TouchableOpacity onPress={() => router.push("/auth/cadastro")}>
-        <Text style={styles.linkText}>Não possui cadastro? Cadastre-se</Text>
-      </TouchableOpacity>
+            <ButtonCustom
+              title="Esqueci minha senha"
+              variant="link"
+              onPress={() => router.push("/auth/esqueci-senha")}
+              icon={
+                <MaterialIcons name="help-outline" size={20} color="#2196F3" />
+              }
+            />
+          </View>
+
+          <View style={styles.actions}>
+            <ButtonCustom
+              title="Entrar"
+              onPress={handleLogin}
+              color="#2196F3"
+              style={styles.mainButton}
+              icon={<MaterialIcons name="login" size={20} color="#FFF" />}
+            />
+            <ButtonCustom
+              title="Não possui cadastro? Cadastre-se"
+              variant="link"
+              color={"#000"}
+              onPress={() => router.push("/auth/cadastro")}
+            />
+          </View>
+        </View>
+      </ScrollView>
 
       <ConfirmationModal
         visible={isModalVisible}
@@ -130,21 +172,77 @@ export default function LoginScreen() {
           onChangeText: setCodigoConfirmacao,
         }}
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: "center",
-    padding: 20,
-    backgroundColor: "#f9f9f9",
+    backgroundColor: "#F5F5F5",
   },
-  linkText: {
-    marginTop: 15,
-    textAlign: "center",
-    fontSize: 16,
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+  },
+  header: {
+    alignItems: "center",
+    padding: 24,
+    gap: 12,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#212121",
+    letterSpacing: 0.25,
+  },
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    margin: 16,
+    padding: 20,
+  },
+  section: {
+    marginBottom: 24,
+    gap: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#424242",
+    marginBottom: 16,
+  },
+  forgotPassword: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+  },
+  forgotPasswordText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: "#666",
     textDecorationLine: "underline",
+  },
+  actions: {
+    gap: 16,
+  },
+  mainButton: {
+    height: 48,
+    borderRadius: 24,
+  },
+  registerButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: "#F5F5F5",
+  },
+  registerText: {
+    marginLeft: 8,
+    fontSize: 16,
+    color: "#666",
+    fontWeight: "500",
   },
 });

@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f5f5f5",
+    backgroundColor: "#F5F5F5",
     zIndex: 1,
   },
   splashText: {
