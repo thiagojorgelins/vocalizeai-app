@@ -49,17 +49,28 @@ export default function RootLayout() {
     <View style={{ flex: 1 }}>
       {isSplashVisible ? (
         <View style={styles.splashContainer}>
-          <Text style={styles.splashText}>VocalizaAI</Text>
+          <Text style={styles.splashText}>VocalizeAI</Text>
           <ActivityIndicator size="large" color="#0000ff" />
         </View>
       ) : null}
       <Slot />
-      <FlashMessage position="bottom" />
+      <FlashMessage position="top" style={styles.flashMsgStyle}/>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  flashMsgStyle: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 20,
+    paddingBottom: 20,
+    paddingLeft: 10,
+    paddingRight: 10,
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
+  },
   splashContainer: {
     position: "absolute",
     top: 0,
