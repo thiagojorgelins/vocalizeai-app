@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -10,6 +10,20 @@ import {
   Platform,
   StatusBar,
 } from "react-native";
+import { showMessage } from "react-native-flash-message";
+
+let headerUpdateListeners: any[] = [];
+
+export const subscribeToUsernameUpdate = (callback: () => Promise<void>) => {
+  headerUpdateListeners.push(callback);
+  return () => {
+    headerUpdateListeners = headerUpdateListeners.filter(cb => cb !== callback);
+  };
+};
+
+export const notifyUsernameUpdated = () => {
+  headerUpdateListeners.forEach(callback => callback());
+};
 
 export function Header() {
   const [username, setUsername] = useState("");
@@ -20,7 +34,10 @@ export function Header() {
       const storedUsername = await AsyncStorage.getItem("username");
       setUsername(storedUsername || "Usuário");
     } catch (error) {
-      console.error("Erro ao carregar username:", error);
+      showMessage({
+        message: "Erro ao carregar o nome de usuário.",
+        type: "danger",
+      });
       setUsername("Usuário");
     }
   };
@@ -28,14 +45,20 @@ export function Header() {
   useFocusEffect(
     useCallback(() => {
       loadUsername();
-    }, [loadUsername])
+      
+      const unsubscribe = subscribeToUsernameUpdate(loadUsername);
+      
+      return () => {
+        unsubscribe();
+      };
+    }, [])
   );
   
   return (
     <View style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.titleContainer}>
-          <Text style={styles.title}>VocalizaAI</Text>
+          <Text style={styles.title}>VocalizeAI</Text>
         </View>
 
         <TouchableOpacity
@@ -111,6 +134,8 @@ const styles = StyleSheet.create({
     color: "#444",
     marginRight: 6,
     flex: 1,
+    fontWeight: "600",
+    textAlign: "center"
   },
   icon: {
     marginLeft: 2,
