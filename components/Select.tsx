@@ -1,4 +1,5 @@
 import { SelectProps } from "@/types/SelectProps";
+import { MaterialIcons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -9,25 +10,39 @@ export default function Select({
   onValueChange,
   options,
   style,
-  
+  leftIcon,
 }: SelectProps) {
+  const pickerContainerStyle = [styles.pickerContainer, style];
+
   return (
-    <View style={[styles.container, style]}>
+    <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
-      <View style={styles.pickerContainer}>
-        <Picker
-          selectedValue={selectedValue}
-          onValueChange={onValueChange}
-          style={styles.picker}
-        >
-          {options.map((option) => (
-            <Picker.Item
-              key={option.value}
-              label={option.label}
-              value={option.value}
-            />
-          ))}
-        </Picker>
+      <View style={pickerContainerStyle}>
+        {leftIcon && <View style={styles.iconContainer}>{leftIcon}</View>}
+        <View style={styles.pickerWrapper}>
+          <Picker
+            selectedValue={selectedValue}
+            onValueChange={onValueChange}
+            style={styles.picker}
+            dropdownIconColor="#666"
+            itemStyle={styles.pickerItem}
+          >
+            {options.map((option) => (
+              <Picker.Item
+                key={option.value}
+                label={option.label}
+                value={option.value}
+                color="#424242"
+              />
+            ))}
+          </Picker>
+          <MaterialIcons
+            name="arrow-drop-down"
+            size={24}
+            color="#666"
+            style={styles.dropdownIcon}
+          />
+        </View>
       </View>
     </View>
   );
@@ -35,22 +50,47 @@ export default function Select({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   label: {
     fontSize: 16,
     fontWeight: "bold",
-    marginBottom: 5,
+    marginBottom: 4,
+    color: "#424242",
   },
   pickerContainer: {
     borderWidth: 1,
-    borderColor: "#000",
+    borderColor: "#ddd",
     borderRadius: 24,
     backgroundColor: "#fff",
+    flexDirection: "row",
+    alignItems: "center",
+    height: 56,
     overflow: "hidden",
   },
+  pickerWrapper: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    position: "relative",
+  },
   picker: {
+    flex: 1,
     height: 56,
-    width: "100%",
+    color: "#424242",
+    paddingLeft: 12,
+  },
+  pickerItem: {
+    paddingLeft: 20,
+    fontSize: 16,
+  },
+  dropdownIcon: {
+    position: "absolute",
+    right: 12,
+    pointerEvents: "none",
+  },
+  iconContainer: {
+    paddingLeft: 16,
+    paddingRight: 8,
   },
 });
