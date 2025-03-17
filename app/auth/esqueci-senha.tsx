@@ -2,6 +2,7 @@ import ButtonCustom from "@/components/Button";
 import ConfirmationModal from "@/components/ConfirmationModal";
 import Input from "@/components/Inputs/Input";
 import { requestPasswordReset } from "@/services/authService";
+import { validarEmail } from "@/services/usuarioService";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -12,64 +13,112 @@ import {
   StyleSheet,
   Text,
   View,
+  ActivityIndicator,
 } from "react-native";
 import { showMessage } from "react-native-flash-message";
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState("");
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isModalLoading, setIsModalLoading] = useState(false);
   const [codigoConfirmacao, setCodigoConfirmacao] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [codigoError, setCodigoError] = useState("");
   const router = useRouter();
 
+  const handleEmailChange = (text: string) => {
+    setEmail(text);
+    if (!text.trim()) {
+      setEmailError("Email é obrigatório");
+    } else if (!validarEmail(text)) {
+      setEmailError("Formato de email inválido");
+    } else {
+      setEmailError("");
+    }
+  };
+
   async function handleForgotPassword() {
-    if (!email) {
-      showMessage({
-        message: "Informe seu email",
-        type: "danger",
-      });
+    if (!email.trim()) {
+      setEmailError("Informe seu email");
       return;
     }
 
-    if (!/^\S+@\S+\.\S+$/.test(email)) {
-      showMessage({
-        message: "Formato do email é inválido.",
-        type: "danger",
-      });
+    if (!validarEmail(email)) {
+      setEmailError("Formato de email inválido");
       return;
     }
 
+    setIsLoading(true);
     try {
       await requestPasswordReset(email);
       showMessage({
-        message: "Um código de recuperação foi enviado para o email informado.",
+        message: "Código enviado com sucesso!",
+        description:
+          "Um código de recuperação foi enviado para o email informado.",
         type: "success",
+        duration: 3000,
       });
       setIsModalVisible(true);
     } catch (error: any) {
       showMessage({
-        message: error.message,
+        message: "Erro ao enviar código",
+        description:
+          error.message || "Não foi possível enviar o código de recuperação.",
         type: "danger",
+        duration: 3000,
       });
+    } finally {
+      setIsLoading(false);
     }
   }
 
-  async function handleConfirmResetCode(codigoConfirmacao?: string) {
-    if (!codigoConfirmacao) return;
+  async function handleConfirmResetCode(codigo?: string) {
+    if (!codigo) {
+      setCodigoError("Código é obrigatório");
+      return;
+    }
+
+    setIsModalLoading(true);
     try {
-      showMessage({
-        message: "Código de recuperação confirmado com sucesso!",
-        type: "success",
-      });
       setIsModalVisible(false);
       router.push({
         pathname: "/auth/trocar-senha",
-        params: { email, codigoConfirmacao },
+        params: { email, codigoConfirmacao: codigo },
       });
     } catch (error: any) {
+      setCodigoError("Código de recuperação inválido");
       showMessage({
-        message: "Código de recuperação inválido.",
+        message: "Código inválido",
+        description: "O código informado não é válido.",
         type: "danger",
+        duration: 3000,
       });
+    } finally {
+      setIsModalLoading(false);
+    }
+  }
+
+  async function handleResendCode() {
+    setIsModalLoading(true);
+    try {
+      await requestPasswordReset(email);
+      showMessage({
+        message: "Código reenviado!",
+        description: "Um novo código foi enviado para seu email.",
+        type: "success",
+        duration: 3000,
+      });
+      setCodigoError("");
+    } catch (error: any) {
+      showMessage({
+        message: "Erro ao reenviar",
+        description: error.message || "Não foi possível reenviar o código.",
+        type: "danger",
+        duration: 3000,
+      });
+    } finally {
+      setIsModalLoading(false);
     }
   }
 
@@ -96,22 +145,35 @@ export default function ForgotPasswordScreen() {
 
             <Input
               label="Email"
-              placeholder="Informe seu Email"
+              placeholder="Informe seu email"
               value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
+              showCharacterCount={true}
+              maxLength={80}
+              onChangeText={handleEmailChange}
               leftIcon={<MaterialIcons name="email" size={20} color="#666" />}
+              keyboardType="email-address"
+              error={!!emailError}
+              errorMessage={emailError}
             />
           </View>
 
           <View style={styles.actions}>
-            <ButtonCustom
-              title="Recuperar Senha"
-              onPress={handleForgotPassword}
-              color="#2196F3"
-              style={styles.mainButton}
-              icon={<MaterialIcons name="send" size={20} color="#FFF" />}
-            />
+            {isLoading ? (
+              <ActivityIndicator
+                size="large"
+                color="#2196F3"
+                style={styles.loader}
+              />
+            ) : (
+              <ButtonCustom
+                title="Recuperar Senha"
+                onPress={handleForgotPassword}
+                color="#2196F3"
+                style={styles.mainButton}
+                icon={<MaterialIcons name="send" size={20} color="#FFF" />}
+                disabled={!!emailError || !email.trim()}
+              />
+            )}
 
             <ButtonCustom
               title="Voltar para Login"
@@ -120,6 +182,7 @@ export default function ForgotPasswordScreen() {
               icon={
                 <MaterialIcons name="arrow-back" size={20} color="#424242" />
               }
+              disabled={isLoading}
             />
           </View>
         </View>
@@ -129,12 +192,18 @@ export default function ForgotPasswordScreen() {
         visible={isModalVisible}
         onCancel={() => setIsModalVisible(false)}
         onConfirm={handleConfirmResetCode}
+        onResend={handleResendCode}
+        showResendButton={true}
         message="Digite o código de recuperação enviado para o seu e-mail."
         input={{
           placeholder: "Código de recuperação",
           value: codigoConfirmacao,
           onChangeText: setCodigoConfirmacao,
+          keyboardType: "numeric",
         }}
+        error={!!codigoError}
+        errorMessage={codigoError}
+        isLoading={isModalLoading}
       />
     </KeyboardAvoidingView>
   );
@@ -165,6 +234,17 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     margin: 16,
     padding: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   section: {
     marginBottom: 24,
@@ -183,5 +263,8 @@ const styles = StyleSheet.create({
   mainButton: {
     height: 48,
     borderRadius: 24,
+  },
+  loader: {
+    marginVertical: 20,
   },
 });

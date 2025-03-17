@@ -20,9 +20,10 @@ import {
   View,
   Platform,
   KeyboardAvoidingView,
-  TouchableOpacity,
+  ActivityIndicator,
 } from "react-native";
 import { showMessage } from "react-native-flash-message";
+import * as Animatable from "react-native-animatable";
 
 export default function DadosParticipanteScreen() {
   const [idade, setIdade] = useState("");
@@ -31,9 +32,14 @@ export default function DadosParticipanteScreen() {
   const [nivelSuporte, setNivelSuporte] = useState("1");
   const [participantId, setParticipantId] = useState<string | null>(null);
   const [isModalVisible, setModalVisible] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isModalLoading, setIsModalLoading] = useState(false);
+  const [idadeError, setIdadeError] = useState("");
+
   const router = useRouter();
 
   const loadParticipantData = useCallback(async () => {
+    setIsLoading(true);
     try {
       const userData = await getUser();
 
@@ -61,6 +67,8 @@ export default function DadosParticipanteScreen() {
         duration: 3000,
         icon: "danger",
       });
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -70,8 +78,35 @@ export default function DadosParticipanteScreen() {
     }, [loadParticipantData])
   );
 
+  const handleIdadeChange = (text: string) => {
+    setIdade(text);
+    validateIdade(text);
+  };
+
+  const validateIdade = (value: string) => {
+    if (!value.trim()) {
+      setIdadeError("A idade é obrigatória");
+      return false;
+    }
+
+    const idadeNum = parseInt(value);
+    if (isNaN(idadeNum) || idadeNum < 1 || idadeNum > 99) {
+      setIdadeError("Idade deve estar entre 1 e 99 anos");
+      return false;
+    }
+
+    setIdadeError("");
+    return true;
+  };
+
   async function handleSave() {
+    if (!validateIdade(idade)) {
+      return;
+    }
+
     try {
+      setIsModalLoading(true);
+
       const payload: ParticipantePayload = {
         idade: parseInt(idade),
         qtd_palavras: qtdPalavras,
@@ -112,6 +147,8 @@ export default function DadosParticipanteScreen() {
         duration: 3000,
         icon: "danger",
       });
+    } finally {
+      setIsModalLoading(false);
     }
   }
 
@@ -120,6 +157,19 @@ export default function DadosParticipanteScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
     >
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <Animatable.View
+            animation="pulse"
+            easing="ease-out"
+            iterationCount="infinite"
+          >
+            <ActivityIndicator size="large" color="#2196F3" />
+          </Animatable.View>
+          <Text style={styles.loadingText}>Carregando...</Text>
+        </View>
+      )}
+
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
@@ -139,9 +189,12 @@ export default function DadosParticipanteScreen() {
               label="Idade"
               placeholder="Idade do Participante"
               keyboardType="numeric"
+              maxLength={2}
               value={idade}
-              onChangeText={setIdade}
+              onChangeText={handleIdadeChange}
               leftIcon={<MaterialIcons name="cake" size={20} color="#666" />}
+              error={!!idadeError}
+              errorMessage={idadeError}
             />
 
             <Select
@@ -151,7 +204,9 @@ export default function DadosParticipanteScreen() {
               options={[
                 { label: "Masculino", value: "Masculino" },
                 { label: "Feminino", value: "Feminino" },
+                { label: "Outros", value: "Outros" },
               ]}
+              leftIcon={<MaterialIcons name="face" size={20} color="#666" />}
             />
 
             <Select
@@ -162,7 +217,9 @@ export default function DadosParticipanteScreen() {
                 { label: "Nível 1", value: "1" },
                 { label: "Nível 2", value: "2" },
                 { label: "Nível 3", value: "3" },
+                { label: "Não sei informar", value: "0" },
               ]}
+              leftIcon={<MaterialIcons name="star" size={20} color="#666" />}
             />
 
             <Select
@@ -170,11 +227,30 @@ export default function DadosParticipanteScreen() {
               selectedValue={qtdPalavras}
               onValueChange={setQtdPalavras}
               options={[
-                { label: "Nenhuma palavra", value: "Nenhuma palavra" },
-                { label: "Entre 1 - 5", value: "Entre 1 - 5" },
-                { label: "Entre 6 - 10", value: "Entre 6 - 10" },
-                { label: "Entre 11 - 20", value: "Entre 11 - 20" },
+                {
+                  label: "Não pronuncia nenhuma palavra",
+                  value: "Não pronuncia nenhuma palavra",
+                },
+                {
+                  label: "Pronuncia entre 1 e 5 palavras",
+                  value: "Pronuncia entre 1 e 5 palavras",
+                },
+                {
+                  label: "Pronuncia entre 6 e 15 palavras",
+                  value: "Pronuncia entre 6 e 15 palavras",
+                },
+                {
+                  label: "Pronuncia 16 ou mais palavras",
+                  value: "Pronuncia 16 ou mais palavras",
+                },
               ]}
+              leftIcon={
+                <MaterialIcons
+                  name="record-voice-over"
+                  size={20}
+                  color="#666"
+                />
+              }
             />
           </View>
 
@@ -185,19 +261,25 @@ export default function DadosParticipanteScreen() {
               }
               onPress={() => setModalVisible(true)}
               icon={<MaterialIcons name="save" size={20} color="#FFF" />}
+              color="#2196F3"
+              style={styles.mainButton}
+              disabled={!!idadeError || !idade.trim()}
             />
+
             <ButtonCustom
               title="Voltar para Dados do Usuário"
               variant="secondary"
               onPress={() => router.push("/usuario/editar-usuario")}
-              icon={<MaterialIcons name="arrow-back" size={20} color="#FFF" />}
+              icon={<MaterialIcons name="arrow-back" size={20} color="#666" />}
+              disabled={isLoading}
             />
 
             <ButtonCustom
-              title="Sair da Conta"
+              title="Sair do App"
               onPress={doLogout}
               icon={<MaterialIcons name="logout" size={20} color="#D32F2F" />}
               variant="danger"
+              disabled={isLoading}
             />
           </View>
         </View>
@@ -206,10 +288,11 @@ export default function DadosParticipanteScreen() {
       <ConfirmationModal
         visible={isModalVisible}
         onCancel={() => setModalVisible(false)}
-        onConfirm={handleSave}
+        onConfirm={() => handleSave()}
         message={`Deseja confirmar a ${
           participantId ? "atualização" : "criação"
         } dos dados do participante?`}
+        isLoading={isModalLoading}
       />
     </KeyboardAvoidingView>
   );
@@ -219,6 +302,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#F5F5F5",
+  },
+  loadingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(255, 255, 255, 0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1000,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: "#2196F3",
+    fontWeight: "600",
   },
   scrollView: {
     flex: 1,
@@ -269,6 +369,7 @@ const styles = StyleSheet.create({
   },
   mainButton: {
     height: 48,
+    borderRadius: 24,
   },
   linkButton: {
     flexDirection: "row",

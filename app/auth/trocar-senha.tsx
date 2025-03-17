@@ -11,44 +11,82 @@ import {
   StyleSheet,
   Text,
   View,
+  ActivityIndicator,
 } from "react-native";
 import { showMessage } from "react-native-flash-message";
 
 export default function ChangePasswordScreen() {
   const [senha, setSenha] = useState("");
   const [confirmaSenha, setConfirmaSenha] = useState("");
+  const [senhaError, setSenhaError] = useState("");
+  const [confirmaSenhaError, setConfirmaSenhaError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { email, codigoConfirmacao } = useLocalSearchParams();
 
+  const handleSenhaChange = (text: string) => {
+    setSenha(text);
+    if (!text) {
+      setSenhaError("A senha é obrigatória");
+    } else if (text.length < 6) {
+      setSenhaError("A senha deve ter no mínimo 6 caracteres");
+    } else {
+      setSenhaError("");
+      if (confirmaSenha && confirmaSenha !== text) {
+        setConfirmaSenhaError("As senhas não coincidem");
+      } else if (confirmaSenha) {
+        setConfirmaSenhaError("");
+      }
+    }
+  };
+
+  const handleConfirmaSenhaChange = (text: string) => {
+    setConfirmaSenha(text);
+    if (!text) {
+      setConfirmaSenhaError("Confirme sua senha");
+    } else if (text !== senha) {
+      setConfirmaSenhaError("As senhas não coincidem");
+    } else {
+      setConfirmaSenhaError("");
+    }
+  };
+
   async function handleChangePassword() {
-    if (!senha || !confirmaSenha) {
-      showMessage({
-        message: "Todos os campos são obrigatórios.",
-        type: "danger",
-      });
+    if (!senha) {
+      setSenhaError("A senha é obrigatória");
+      return;
+    } else if (senha.length < 6) {
+      setSenhaError("A senha deve ter no mínimo 6 caracteres");
       return;
     }
 
-    if (senha !== confirmaSenha) {
-      showMessage({
-        message: "As senhas não coincidem.",
-        type: "danger",
-      });
+    if (!confirmaSenha) {
+      setConfirmaSenhaError("Confirme sua senha");
+      return;
+    } else if (senha !== confirmaSenha) {
+      setConfirmaSenhaError("As senhas não coincidem");
       return;
     }
 
+    setIsLoading(true);
     try {
       await resetPassword(email as string, codigoConfirmacao as string, senha);
       showMessage({
         message: "Senha redefinida com sucesso!",
+        description: "Você já pode fazer login com sua nova senha.",
         type: "success",
+        duration: 3000,
       });
       router.push("/auth/login");
     } catch (error: any) {
       showMessage({
-        message: error.message,
+        message: "Erro ao redefinir senha",
+        description: error.message || "Não foi possível redefinir sua senha.",
         type: "danger",
+        duration: 3000,
       });
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -79,35 +117,49 @@ export default function ChangePasswordScreen() {
               label="Nova senha"
               placeholder="Informe sua nova senha"
               value={senha}
-              onChangeText={setSenha}
+              onChangeText={handleSenhaChange}
               leftIcon={<MaterialIcons name="lock" size={20} color="#666" />}
+              error={!!senhaError}
+              errorMessage={senhaError}
             />
 
             <InputPassword
               label="Confirmar senha"
               placeholder="Confirme sua nova senha"
               value={confirmaSenha}
-              onChangeText={setConfirmaSenha}
+              onChangeText={handleConfirmaSenhaChange}
               leftIcon={
                 <MaterialIcons name="lock-outline" size={20} color="#666" />
               }
+              error={!!confirmaSenhaError}
+              errorMessage={confirmaSenhaError}
             />
           </View>
 
           <View style={styles.actions}>
-            <ButtonCustom
-              title="Redefinir Senha"
-              onPress={handleChangePassword}
-              color="#2196F3"
-              style={styles.mainButton}
-              icon={<MaterialIcons name="check" size={20} color="#FFF" />}
-            />
+            {isLoading ? (
+              <ActivityIndicator
+                size="large"
+                color="#2196F3"
+                style={styles.loader}
+              />
+            ) : (
+              <ButtonCustom
+                title="Redefinir Senha"
+                onPress={handleChangePassword}
+                color="#2196F3"
+                style={styles.mainButton}
+                icon={<MaterialIcons name="check" size={20} color="#FFF" />}
+                disabled={!!senhaError || !!confirmaSenhaError || !senha || !confirmaSenha}
+              />
+            )}
 
             <ButtonCustom
               title="Cancelar"
               variant="secondary"
               onPress={() => router.back()}
               icon={<MaterialIcons name="close" size={20} color="#424242" />}
+              disabled={isLoading}
             />
           </View>
         </View>
@@ -141,6 +193,17 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     margin: 16,
     padding: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   section: {
     marginBottom: 24,
@@ -164,5 +227,8 @@ const styles = StyleSheet.create({
   mainButton: {
     height: 48,
     borderRadius: 24,
+  },
+  loader: {
+    marginVertical: 20,
   },
 });

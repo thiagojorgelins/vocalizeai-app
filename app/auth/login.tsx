@@ -7,6 +7,7 @@ import {
   doLogin,
   sendConfirmationCode,
 } from "@/services/authService";
+import { validarEmail } from "@/services/usuarioService";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -16,7 +17,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from "react-native";
 import { showMessage } from "react-native-flash-message";
@@ -26,6 +26,17 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [codigoConfirmacao, setCodigoConfirmacao] = useState("");
+  const [emailError, setEmailError] = useState("");
+
+  const handleEmailChange = (text: string) => {
+    setEmail(text);
+
+    if (text && !validarEmail(text)) {
+      setEmailError("Formato de email inválido.");
+    } else {
+      setEmailError("");
+    }
+  };
   const router = useRouter();
 
   async function handleLogin() {
@@ -107,7 +118,7 @@ export default function LoginScreen() {
       >
         <View style={styles.header}>
           <MaterialIcons name="login" size={40} color="#2196F3" />
-          <Text style={styles.title}>Login</Text>
+          <Text style={styles.title}>Bem vindo ao Projeto VocalizeAI!</Text>
         </View>
 
         <View style={styles.card}>
@@ -116,11 +127,15 @@ export default function LoginScreen() {
 
             <Input
               label="Email"
-              placeholder="Informe seu Email"
+              placeholder="Informe seu email"
               value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
+              showCharacterCount={true}
+              maxLength={80}
+              onChangeText={handleEmailChange}
               leftIcon={<MaterialIcons name="email" size={20} color="#666" />}
+              keyboardType="email-address"
+              error={!!emailError}
+              errorMessage={emailError}
             />
 
             <InputPassword
@@ -152,7 +167,7 @@ export default function LoginScreen() {
             <ButtonCustom
               title="Não possui cadastro? Cadastre-se"
               variant="link"
-              color={"#000"}
+              color="#2196F3"
               onPress={() => router.push("/auth/cadastro")}
             />
           </View>
@@ -194,7 +209,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "700",
     color: "#212121",
-    letterSpacing: 0.25,
+    textAlign: "center",
   },
   card: {
     backgroundColor: "#FFFFFF",

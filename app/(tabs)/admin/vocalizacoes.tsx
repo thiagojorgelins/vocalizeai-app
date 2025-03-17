@@ -38,7 +38,11 @@ export default function VocalizacoesScreen() {
       const role = await getRole();
       setIsAdmin(role === "admin");
     } catch (error) {
-      console.error("Error checking role:", error);
+      showMessage({
+        message: "Erro",
+        description: "Não foi possível verificar a permissão de administrador",
+        type: "danger", 
+      })
       setIsAdmin(false);
     }
   }, []);
@@ -271,6 +275,8 @@ export default function VocalizacoesScreen() {
 
             <Input
               label="Nome"
+              maxLength={50}
+              showCharacterCount={true}
               value={nome}
               onChangeText={setNome}
               placeholder="Digite o nome da vocalização"

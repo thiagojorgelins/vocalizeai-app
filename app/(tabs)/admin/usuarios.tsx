@@ -1,7 +1,12 @@
 import ButtonCustom from "@/components/Button";
 import ConfirmationModal from "@/components/ConfirmationModal";
 import Input from "@/components/Inputs/Input";
-import { deleteUser, getAllUsers, updateUserAdmin } from "@/services/usuarioService";
+import {
+  deleteUser,
+  getAllUsers,
+  updateUserAdmin,
+  validarEmail,
+} from "@/services/usuarioService";
 import { Usuario } from "@/types/Usuario";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
@@ -27,6 +32,28 @@ export default function UsuariosScreen() {
   const [celular, setCelular] = useState("");
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [emailError, setEmailError] = useState("");
+  const [celularError, setCelularError] = useState("");
+
+  const handleEmailChange = (text: string) => {
+    setEmail(text);
+
+    if (text && !validarEmail(text)) {
+      setEmailError("Formato de email inválido.");
+    } else {
+      setEmailError("");
+    }
+  };
+
+  const handleCelularChange = (text: string) => {
+    setCelular(text);
+
+    if (!text || text.length < 11) {
+      setCelularError("Celular inválido");
+    } else {
+      setCelularError("");
+    }
+  };
 
   const fetchUsuarios = useCallback(async () => {
     setIsLoading(true);
@@ -55,25 +82,50 @@ export default function UsuariosScreen() {
     setNome(usuario.nome || "");
     setEmail(usuario.email || "");
     setCelular(usuario.celular || "");
+    setEmailError("");
+    setCelularError("");
     setShowModal(true);
   };
 
   const validateForm = () => {
+    let isValid = true;
+
     if (!nome.trim()) {
       showMessage({
         message: "Erro",
         description: "O nome é obrigatório",
         type: "warning",
       });
-      return false;
+      isValid = false;
     }
-    return true;
+
+    if (celular && celular.replace(/\D/g, "").length < 10) {
+      setCelularError("Celular inválido");
+      showMessage({
+        message: "Erro",
+        description: "Número de celular inválido",
+        type: "warning",
+      });
+      isValid = false;
+    }
+
+    if (email && !validarEmail(email)) {
+      setEmailError("Formato de email inválido");
+      showMessage({
+        message: "Erro",
+        description: "Formato de email inválido",
+        type: "warning",
+      });
+      isValid = false;
+    }
+
+    return isValid;
   };
 
   const handleSave = async () => {
     if (!selectedUsuario) return;
     if (!validateForm()) return;
-  
+
     setIsLoading(true);
     try {
       const updateData: Usuario = {
@@ -82,15 +134,15 @@ export default function UsuariosScreen() {
         email: selectedUsuario.email,
         celular: celular.trim(),
       };
-  
+
       await updateUserAdmin(updateData);
-  
+
       showMessage({
         message: "Sucesso",
         description: "Dados do usuário atualizados com sucesso!",
         type: "success",
       });
-  
+
       setShowModal(false);
       await fetchUsuarios();
     } catch (error: any) {
@@ -211,22 +263,34 @@ export default function UsuariosScreen() {
               value={nome}
               onChangeText={setNome}
               editable={!isLoading}
+              maxLength={50}
+              showCharacterCount={true}
             />
             <Input
               label="Email"
+              placeholder="Informe seu email"
               value={email}
-              onChangeText={setEmail}
-              editable={!isLoading}
+              showCharacterCount={true}
+              maxLength={80}
+              onChangeText={handleEmailChange}
               leftIcon={<MaterialIcons name="email" size={20} color="#666" />}
+              keyboardType="email-address"
+              error={!!emailError}
+              errorMessage={emailError}
             />
             <Input
               label="Celular"
-              value={celular}
-              mask="(99) 99999-9999"
-              maxLength={15}
-              onChangeText={setCelular}
+              placeholder="Informe seu número de celular"
               keyboardType="phone-pad"
-              editable={!isLoading}
+              value={celular}
+              maxLength={15}
+              mask="(99) 99999-9999"
+              onChangeText={handleCelularChange}
+              leftIcon={
+                <MaterialIcons name="phone-android" size={20} color="#666" />
+              }
+              error={!!celularError}
+              errorMessage={celularError}
             />
 
             <View style={styles.modalActions}>
