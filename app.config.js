@@ -2,8 +2,8 @@ import 'dotenv/config';
 
 export default {
   expo: {
-    name: "VocalizaAI",
-    slug: "vocalizaai",
+    name: "VocalizeAI",
+    slug: "vocalizeai",
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
@@ -12,7 +12,7 @@ export default {
     newArchEnabled: true,
     
     ios: {
-      bundleIdentifier: "com.thiagolins.vocalizaai",
+      bundleIdentifier: "com.thiagolins.vocalizeai",
       supportsTablet: true,
       infoPlist: {
         NSAppTransportSecurity: { 
@@ -33,7 +33,7 @@ export default {
         foregroundImage: "./assets/images/adaptive-icon.png",
         backgroundColor: "#ffffff"
       },
-      package: "com.thiagolins.vocalizaai",
+      package: "com.thiagolins.vocalizeai",
       permissions: [
         "RECORD_AUDIO",
         "FOREGROUND_SERVICE",
