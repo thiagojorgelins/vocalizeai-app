@@ -13,4 +13,7 @@ export interface InputProps {
     editable?: boolean;
     leftIcon?: React.ReactNode;
     numberOfLines?: number;
+    error?: boolean | string;
+    errorMessage?: string;
+    showCharacterCount?: boolean;
 }
