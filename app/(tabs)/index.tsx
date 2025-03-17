@@ -1,6 +1,6 @@
 import ButtonCustom from "@/components/Button";
 import ConfirmationModal from "@/components/ConfirmationModal";
-import Select from "@/components/Select";
+import VocalizationSelect from "@/components/VocalizationSelect";
 import { getVocalizacoes } from "@/services/vocalizacoesService";
 import { Vocalizacao } from "@/types/Vocalizacao";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -23,7 +23,6 @@ import {
 } from "react-native";
 import BackgroundTimer from "react-native-background-timer";
 import { showMessage } from "react-native-flash-message";
-import translateVocalization from "@/utils/TranslateVocalization";
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -41,6 +40,7 @@ export default function HomeScreen() {
   const [recordingSegments, setRecordingSegments] = useState<string[]>([]);
   const [elapsedTimeBeforePause, setElapsedTimeBeforePause] = useState(0);
   const [displayTime, setDisplayTime] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
 
   const startTimeRef = useRef<number | null>(null);
   const notificationRef = useRef<string | null>(null);
@@ -285,16 +285,37 @@ export default function HomeScreen() {
 
   const cleanup = async () => {
     if (recording) {
-      await stopRecording();
+      try {
+        const status = await recording.getStatusAsync();
+        if (status.canRecord) {
+          await recording.stopAndUnloadAsync();
+        }
+      } catch (error) {
+        showMessage({
+          message: "Erro",
+          description: "Não foi possível parar a gravação do áudio",
+          type: "danger",
+        });
+      }
+      setRecording(null);
     }
+    
     if (notificationRef.current) {
-      await Notifications.dismissNotificationAsync(notificationRef.current);
+      try {
+        await Notifications.dismissNotificationAsync(notificationRef.current);
+      } catch (error) {
+        showMessage({
+          message: "Erro",
+          description: "Não foi possível descartar a notificação",
+          type: "danger",
+        })
+      }
       notificationRef.current = null;
     }
+    
     stopTimer();
     BackgroundTimer.stopBackgroundTimer();
   };
-
   useEffect(() => {
     return () => {
       BackgroundTimer.stopBackgroundTimer();
@@ -302,7 +323,10 @@ export default function HomeScreen() {
   }, []);
 
   const startRecording = async () => {
+    if (isLoading) return;
     try {
+      setIsLoading(true);
+
       const { granted } = await Audio.getPermissionsAsync();
       if (!granted) {
         showMessage({
@@ -313,6 +337,17 @@ export default function HomeScreen() {
         return;
       }
 
+      if (recording) {
+        try {
+          await recording.stopAndUnloadAsync()
+        } catch (error) {
+          showMessage({
+            message: "Erro ao pausar",
+            description: "Não foi possível parar a gravação do áudio",
+            type: "danger",
+          }); 
+        }
+      }
       const newRecording = new Audio.Recording();
       await newRecording.prepareToRecordAsync({
         isMeteringEnabled: true,
@@ -354,18 +389,38 @@ export default function HomeScreen() {
         description: "Não foi possível iniciar a gravação do áudio",
         type: "danger",
       });
+      setRecording(null)
     }
-  };
+    finally {
+      setIsLoading(false);
+    }
+  } 
+
 
   const stopRecording = async () => {
+    if (isLoading) return;
+
     try {
+      setIsLoading(true);
+
       if (recording) {
-        await recording.stopAndUnloadAsync();
-        const uri = recording.getURI();
-        if (uri) {
-          setRecordingSegments((prev) => [...prev, uri]);
-          setElapsedTimeBeforePause(displayTime);
+        const status = await recording.getStatusAsync();
+
+        if (status.canRecord){
+          await recording.stopAndUnloadAsync();
+          const uri = recording.getURI();
+          if (uri) {
+            setRecordingSegments((prev) => [...prev, uri]);
+            setElapsedTimeBeforePause(displayTime);
+          }
+        } else {
+          showMessage({
+            message: "Erro",
+            description: "Não foi possível parar a gravação do áudio",
+            type: "danger",
+          });
         }
+        
         setRecording(null);
         stopTimer();
         setIsPaused(true);
@@ -381,6 +436,11 @@ export default function HomeScreen() {
         description: "Não foi possível parar a gravação do áudio",
         type: "danger",
       });
+
+      setRecording(null);
+      setIsPaused(true);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -482,6 +542,16 @@ export default function HomeScreen() {
       });
     } finally {
       setLoadingVocalizations(false);
+    }
+  }
+
+  const handleRecordPress = async () => {
+    if (isLoading) return
+
+    if (recording) {
+      await stopRecording();
+    } else {
+      await startRecording();
     }
   }
 
@@ -597,23 +667,31 @@ export default function HomeScreen() {
         )}
 
         <Pressable
-          style={({ pressed }) => [
-            styles.controlButton,
-            styles.recordButton,
-            recording && styles.recordingButton,
-            pressed && styles.buttonPressed
-          ]}
-          onPress={recording ? stopRecording : startRecording}
-        >
-          <MaterialIcons
-            name={recording ? "pause" : isPaused ? "play-arrow" : "mic"}
-            size={40}
-            color="white"
-          />
-          <Text style={styles.buttonText}>
-            {recording ? "Pausar" : isPaused ? "Continuar" : "Gravar"}
-          </Text>
-        </Pressable>
+  style={({ pressed }) => [
+    styles.controlButton,
+    styles.recordButton,
+    recording && styles.recordingButton,
+    isLoading && styles.disabledButton,
+    pressed && styles.buttonPressed
+  ]}
+  onPress={handleRecordPress}
+  disabled={isLoading}
+>
+  {isLoading ? (
+    <ActivityIndicator color="white" size="large" />
+  ) : (
+    <>
+      <MaterialIcons
+        name={recording ? "pause" : isPaused ? "play-arrow" : "mic"}
+        size={40}
+        color="white"
+      />
+      <Text style={styles.buttonText}>
+        {recording ? "Pausar" : isPaused ? "Continuar" : "Gravar"}
+      </Text>
+    </>
+  )}
+</Pressable>
 
         {isPaused && (
           <Pressable
@@ -652,16 +730,10 @@ export default function HomeScreen() {
             {loadingVocalizations ? (
               <ActivityIndicator size="large" color="#2196F3" />
             ) : (
-              <Select
-                label="Tipo de Vocalização"
-                selectedValue={selectedVocalizationId?.toString() || ""}
-                onValueChange={(itemValue) =>
-                  setSelectedVocalizationId(Number(itemValue))
-                }
-                options={vocalizations.map((voc) => ({
-                  label: translateVocalization[voc.nome] || voc.nome,
-                  value: voc.id.toString(),
-                }))}
+              <VocalizationSelect
+                vocalizations={vocalizations}
+                selectedVocalizationId={selectedVocalizationId}
+                onValueChange={(value) => setSelectedVocalizationId(value)}
               />
             )}
 
@@ -693,6 +765,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F5F5F5',
     paddingHorizontal: 20,
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
   timerSection: {
     flex: 1,
