@@ -147,7 +147,6 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
         
         Log.d(TAG, "Módulo criado");
         
-        // Registrar receptores de broadcast
         IntentFilter filter = new IntentFilter();
         filter.addAction("com.thiagolins.vocalizeai.RECORDING_STATUS");
         filter.addAction("com.thiagolins.vocalizeai.RECORDING_TIME_UPDATE");
@@ -175,15 +174,11 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
     
     @ReactMethod
     public void addListener(String eventName) {
-        // Implementação necessária para RN 0.65+
-        // Não precisa fazer nada. Isso garante que não apareçam alertas sobre listeners não implementados
         Log.d(TAG, "Listener adicionado: " + eventName);
     }
 
     @ReactMethod
     public void removeListeners(Integer count) {
-        // Implementação necessária para RN 0.65+
-        // Não precisa fazer nada. Isso garante que não apareçam alertas sobre listeners não implementados
         Log.d(TAG, "Listeners removidos: " + count);
     }
 
@@ -192,26 +187,22 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
         try {
             Log.d(TAG, "forceStopService chamado - Encerrando serviço forçadamente");
             
-            // Parar qualquer serviço em execução
             Intent serviceIntent = new Intent(reactContext, ForegroundAudioRecorderService.class);
             reactContext.stopService(serviceIntent);
             
-            // Limpar a notificação diretamente
             NotificationManager notificationManager = 
                 (NotificationManager) reactContext.getSystemService(Context.NOTIFICATION_SERVICE);
             notificationManager.cancel(ForegroundAudioRecorderService.NOTIFICATION_ID);
             
-            // Resetar estado local completamente
             isRecording = false;
             isPaused = false;
             currentRecordingTime = 0;
             
-            // Enviar evento de atualização de status
             WritableMap params = Arguments.createMap();
             params.putBoolean("isRecording", false);
             params.putBoolean("isPaused", false);
             params.putDouble("currentTime", 0);
-            params.putString("outputFile", null); // Importante: limpar também o outputFile
+            params.putString("outputFile", null); 
             
             sendEvent("onRecordingStatusChange", params);
             
@@ -230,7 +221,6 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
         try {
             Log.d(TAG, "startRecording chamado com tempo decorrido: " + elapsedTimeBeforePause);
             
-            // Verificar permissões
             if (ContextCompat.checkSelfPermission(reactContext, Manifest.permission.RECORD_AUDIO) 
                     != PackageManager.PERMISSION_GRANTED) {
                 Log.e(TAG, "Permissão para gravar áudio não concedida");
@@ -329,7 +319,6 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
             serviceIntent.setAction(ForegroundAudioRecorderService.ACTION_STOP_RECORDING);
             reactContext.startService(serviceIntent);
             
-            // O resultado será enviado via evento onRecordingComplete
             WritableMap result = Arguments.createMap();
             result.putBoolean("success", true);
             promise.resolve(result);
@@ -367,20 +356,17 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
 
     @Override
     public void onHostResume() {
-        // Pode ser usado para verificar o status atual do serviço quando o app volta ao primeiro plano
         Log.d(TAG, "onHostResume");
     }
 
     @Override
     public void onHostPause() {
-        // Nada a fazer quando o app vai para segundo plano - o serviço continuará funcionando
         Log.d(TAG, "onHostPause");
     }
 
     @Override
     public void onHostDestroy() {
         Log.d(TAG, "onHostDestroy");
-        // Desregistrar receptor quando o módulo é destruído
         try {
             reactContext.unregisterReceiver(recordingStatusReceiver);
             Log.d(TAG, "Receptor desregistrado");
@@ -397,10 +383,8 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
             if (currentOutputFile != null) {
                 File file = new File(currentOutputFile);
                 if (file.exists() && file.length() > 0) {
-                    // Make sure file is readable
                     file.setReadable(true, false);
                     
-                    // Add file:// prefix if needed
                     String fileUrl = currentOutputFile.startsWith("file://") 
                         ? currentOutputFile 
                         : "file://" + currentOutputFile;

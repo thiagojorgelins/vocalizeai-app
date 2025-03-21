@@ -4,23 +4,23 @@ import VocalizationSelect from "@/components/VocalizationSelect";
 import { getVocalizacoes } from "@/services/vocalizacoesService";
 import { Vocalizacao } from "@/types/Vocalizacao";
 import BackgroundAudioRecorder from "@/utils/BackgroundAudioRecorder";
+import FileOperations from '@/utils/FileOperations';
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as FileSystem from "expo-file-system";
-import { useRouter } from "expo-router";
 import { Audio } from "expo-av";
-import { useEffect, useRef, useState } from "react";
+import * as FileSystem from "expo-file-system";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   AppState,
-  Button,
   Modal,
   PermissionsAndroid,
   Platform,
   Pressable,
   StyleSheet,
   Text,
-  View,
+  View
 } from "react-native";
 import { showMessage } from "react-native-flash-message";
 
@@ -95,13 +95,11 @@ export default function HomeScreen() {
   };
 
   const setupRecordingListeners = () => {
-    // Listener para atualizações de tempo
     timeUpdateListenerRef.current =
       BackgroundAudioRecorder.addTimeUpdateListener((time: number) => {
         setRecordingTime(time);
       });
 
-    // Listener para mudanças de status (gravando, pausado)
     statusChangeListenerRef.current =
       BackgroundAudioRecorder.addStatusChangeListener((status: any) => {
         setIsRecording(status.isRecording);
@@ -109,7 +107,6 @@ export default function HomeScreen() {
         setOutputFile(status.outputFile);
       });
 
-    // Listener para quando a gravação for concluída
     recordingCompleteListenerRef.current =
       BackgroundAudioRecorder.addRecordingCompleteListener((data: any) => {
         setOutputFile(data.outputFile);
@@ -131,7 +128,6 @@ export default function HomeScreen() {
   };
 
   const cleanup = () => {
-    // Limpar os listeners quando o componente for desmontado
     if (timeUpdateListenerRef.current) {
       (timeUpdateListenerRef.current as Function)();
       timeUpdateListenerRef.current = null;
@@ -147,7 +143,6 @@ export default function HomeScreen() {
       recordingCompleteListenerRef.current = null;
     }
 
-    // Notificar o usuário se houver uma gravação ativa
     if (isRecording) {
       showMessage({
         message: "Gravação em andamento",
@@ -168,9 +163,8 @@ export default function HomeScreen() {
       setIsPaused(false);
     } catch (error: any) {
       showMessage({
-        message: "Erro ao gravar",
-        description:
-          error.message || "Não foi possível iniciar a gravação do áudio",
+        message: error instanceof Error ? error.message : "Erro",
+        description: "Não foi possível iniciar a gravação do áudio",
         type: "danger",
       });
     } finally {
@@ -187,11 +181,10 @@ export default function HomeScreen() {
       await BackgroundAudioRecorder.pauseRecording();
       setIsPaused(true);
       setElapsedTimeBeforePause(recordingTime);
-    } catch (error: any) {
+    } catch (error) {
       showMessage({
-        message: "Erro ao pausar",
-        description:
-          error.message || "Não foi possível pausar a gravação do áudio",
+        message: error instanceof Error ? error.message : "Erro",        
+        description: "Não foi possível pausar a gravação do áudio",
         type: "danger",
       });
     } finally {
@@ -207,76 +200,65 @@ export default function HomeScreen() {
 
       await BackgroundAudioRecorder.resumeRecording();
       setIsPaused(false);
-    } catch (error: any) {
+    } catch (error) {
       showMessage({
-        message: "Erro ao retomar",
-        description:
-          error.message || "Não foi possível retomar a gravação do áudio",
+        message: error instanceof Error ? error.message : "Erro",
+        description: "Não foi possível retomar a gravação do áudio",
         type: "danger",
       });
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const stopRecording = async () => {
-    if (isLoading) return;
-
-    try {
-      setIsLoading(true);
-
-      await BackgroundAudioRecorder.stopRecording();
-      // O estado será atualizado através dos listeners
-    } catch (error: any) {
-      showMessage({
-        message: "Erro ao parar",
-        description:
-          error.message || "Não foi possível parar a gravação do áudio",
-        type: "danger",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }
 
   const handleDiscard = async () => {
     try {
       setIsLoading(true);
-
+  
       await BackgroundAudioRecorder.forceStopService();
 
       if (outputFile) {
         try {
-          await FileSystem.deleteAsync(outputFile);
-          console.log("Arquivo excluído com sucesso:", outputFile);
+          const deleted = await FileOperations.deleteFile(outputFile);
+          
+          if (!deleted) {
+            throw new Error(`Não foi possível excluir o arquivo: ${outputFile}`);
+          }
         } catch (error) {
-          console.error("Erro ao excluir arquivo:", error);
+          setShowDiscardModal(false);
+          showMessage({
+            message: "Aviso",
+            description: "Erro ao excluir o arquivo de áudio temporário.",
+            type: "warning",
+          });
+
         }
       }
-
+  
       setOutputFile(null);
       setElapsedTimeBeforePause(0);
       setRecordingTime(0);
       setIsPaused(false);
       setIsRecording(false);
       setShowDiscardModal(false);
-
+  
       showMessage({
         message: "Gravação descartada",
         description: "A gravação foi descartada com sucesso.",
         type: "info",
       });
-    } catch (error) {
+    } catch (error) {      
       setOutputFile(null);
       setElapsedTimeBeforePause(0);
       setRecordingTime(0);
       setIsPaused(false);
       setIsRecording(false);
-
+      setShowDiscardModal(false);
+      
       showMessage({
-        message: "Erro",
-        description: "Não foi possível descartar a gravação completamente.",
-        type: "danger",
+        message: "Aviso",
+        description: "A gravação foi descartada, mas houve um erro ao excluir o arquivo.",
+        type: "warning",
       });
     } finally {
       setIsLoading(false);
@@ -292,10 +274,9 @@ export default function HomeScreen() {
       if (!selectedVocalizationId && vocalizations.length > 0) {
         setSelectedVocalizationId(vocalizations[0].id);
       }
-    } catch (error: any) {
+    } catch (error) {
       showMessage({
-        message: "Erro",
-        description: "Não foi possível carregar os rótulos de vocalizações",
+        message: error instanceof Error ? error.message : "Erro",        description: "Não foi possível carregar os rótulos de vocalizações",
         type: "danger",
       });
     } finally {
@@ -326,64 +307,6 @@ export default function HomeScreen() {
     setShowVocalizationModal(false);
   };
 
-  const validateAudioFile = async (filePath: string) => {
-    try {
-      console.log("Validando arquivo de áudio:", filePath);
-
-      // Verificar se o arquivo existe
-      const fileInfo = await FileSystem.getInfoAsync(filePath);
-
-      if (!fileInfo.exists) {
-        console.error("O arquivo não existe:", filePath);
-        return {
-          valid: false,
-          message: "O arquivo de áudio não foi encontrado",
-        };
-      }
-
-      if (fileInfo.size === 0) {
-        console.error("O arquivo está vazio:", filePath);
-        return {
-          valid: false,
-          message: "O arquivo de áudio está vazio ou corrompido",
-        };
-      }
-
-      console.log("Tamanho do arquivo:", fileInfo.size, "bytes");
-
-      // Tentar carregar o áudio para verificar se pode ser reproduzido
-      try {
-        const properUri = filePath.startsWith("file://")
-          ? filePath
-          : `file://${filePath}`;
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: properUri },
-          { shouldPlay: false }
-        );
-
-        // Se chegou aqui, o arquivo provavelmente é válido
-        await sound.unloadAsync();
-
-        return {
-          valid: true,
-          message: "Arquivo de áudio validado com sucesso",
-        };
-      } catch (audioError) {
-        console.error("Erro ao validar áudio:", audioError);
-        return {
-          valid: false,
-          message: "O arquivo de áudio não pôde ser carregado para reprodução",
-        };
-      }
-    } catch (error) {
-      console.error("Erro na validação:", error);
-      return {
-        valid: false,
-        message: "Erro ao validar o arquivo de áudio",
-      };
-    }
-  };
-
   const handleSaveAudio = async () => {
     if (!selectedVocalizationId) {
       showMessage({
@@ -393,7 +316,7 @@ export default function HomeScreen() {
       });
       return;
     }
-
+  
     if (!outputFile) {
       showMessage({
         message: "Nenhuma gravação",
@@ -402,76 +325,42 @@ export default function HomeScreen() {
       });
       return;
     }
-
+  
     setIsLoading(true);
-
+  
     try {
-      // Normalize file path - ensure it has file:// prefix
-      const normalizedPath = outputFile.startsWith("file://")
-        ? outputFile
-        : `file://${outputFile}`;
-
-      // Check if file exists and is valid
-      const fileInfo = await FileSystem.getInfoAsync(normalizedPath);
-      console.log("Informações do arquivo:", fileInfo);
-
-      if (!fileInfo.exists || fileInfo.size === 0) {
-        showMessage({
-          message: "Erro",
-          description: "O arquivo de áudio está vazio ou não foi encontrado",
-          type: "danger",
-        });
-        setIsLoading(false);
-        return;
-      }
-
-      // Wait for file system to properly close the file
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      // Generate a new unique filename
-      const timestamp = Date.now();
-      const filename = `recording_${timestamp}.m4a`;
-      const newUri = `${FileSystem.documentDirectory}${filename}`;
-
-      console.log(`Copiando de ${normalizedPath} para ${newUri}`);
-
-      // Force stop recording service to ensure file is closed
       await BackgroundAudioRecorder.forceStopService();
-
-      // Copy with correct paths
+      
+      const normalizedPath = outputFile.startsWith('file://') 
+        ? outputFile 
+        : `file://${outputFile}`;
+      
+      const audioDir = await FileOperations.getAudioDirectory();
+      const fileName = `recording_${Date.now()}.m4a`;
+      const newUri = `${audioDir}${fileName}`;
+      
       await FileSystem.copyAsync({
         from: normalizedPath,
-        to: newUri,
+        to: newUri
       });
-
-      // Verify the new file
-      const newFileInfo = await FileSystem.getInfoAsync(newUri);
-      if (!newFileInfo.exists || newFileInfo.size === 0) {
-        throw new Error("O arquivo copiado está vazio ou não foi encontrado");
-      }
-
-      console.log(
-        `Arquivo copiado com sucesso. Tamanho: ${newFileInfo.size} bytes`
-      );
-
+      
+      const duration = recordingTime;
       const existingRecordings = await AsyncStorage.getItem("recordings");
-      const recordings = existingRecordings
-        ? JSON.parse(existingRecordings)
-        : [];
-
+      const recordings = existingRecordings ? JSON.parse(existingRecordings) : [];
+      
       recordings.push({
         uri: newUri,
-        timestamp: timestamp,
-        duration: recordingTime,
+        timestamp: Date.now(),
+        duration: duration,
         vocalizationId: selectedVocalizationId,
         vocalizationName: vocalizations.find(
           (v) => v.id === selectedVocalizationId
         )?.nome,
         status: "pending",
       });
-
+      
       await AsyncStorage.setItem("recordings", JSON.stringify(recordings));
-
+      
       setOutputFile(null);
       setElapsedTimeBeforePause(0);
       setRecordingTime(0);
@@ -480,25 +369,32 @@ export default function HomeScreen() {
       setShowVocalizationModal(false);
 
       router.push("/audios");
-
+      
       showMessage({
         message: "Sucesso",
         description: "Gravação salva com sucesso!",
         type: "success",
       });
     } catch (error) {
-      console.error("Erro ao salvar áudio:", error);
       showMessage({
-        message: "Erro ao salvar",
-        description:
-          error instanceof Error ? error.message : "Erro desconhecido",
+        message: error instanceof Error ? error.message : "Erro",
+        description: "Erro desconhecido",
         type: "danger",
       });
     } finally {
       setIsLoading(false);
     }
   };
-
+  useFocusEffect(
+    useCallback(() => {
+      if (!isRecording) {
+        setRecordingTime(0);
+        setElapsedTimeBeforePause(0);
+      }
+      
+    }, [isRecording])
+  );
+  
   return (
     <View style={styles.container}>
       <View style={styles.timerSection}>

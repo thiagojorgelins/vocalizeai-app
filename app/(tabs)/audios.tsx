@@ -23,6 +23,7 @@ import {
   View
 } from "react-native";
 import { showMessage } from "react-native-flash-message";
+import FileOperations from '@/utils/FileOperations';
 
 export default function AudiosScreen() {
   const [recordings, setRecordings] = useState<AudioRecording[]>([]);
@@ -56,7 +57,7 @@ export default function AudiosScreen() {
         setPlayingUri(null);
       } catch (error) {
         showMessage({
-          message: "Erro",
+          message: error instanceof Error ? error.message : "Erro",
           description: "Erro ao parar a reprodução de áudio",
           type: "danger",
         })
@@ -100,7 +101,6 @@ export default function AudiosScreen() {
 
   async function handlePlayAudio(uri: string) {
     try {
-      // If already playing, stop
       if (soundRef.current) {
         await soundRef.current.stopAsync();
         await soundRef.current.unloadAsync();
@@ -112,44 +112,65 @@ export default function AudiosScreen() {
         }
       }
   
-      // Normalize URI to ensure it has file:// prefix
       const properUri = uri.startsWith('file://') ? uri : `file://${uri}`;
       
-      console.log(`Attempting to play audio: ${properUri}`);
-      
-      // Verify file before playing
       const fileInfo = await FileSystem.getInfoAsync(properUri);
-      console.log("File info:", fileInfo);
-      
+
       if (!fileInfo.exists) {
-        throw new Error("Audio file not found");
+        throw new Error("Arquivo não existe");
       }
       
       if (fileInfo.size === 0) {
-        throw new Error("Audio file is empty or corrupted");
+        throw new Error("O arquivo está vazio ou corrompido");
       }
-  
-      // Create and configure sound object
-      const { sound, status } = await Audio.Sound.createAsync(
-        { uri: properUri },
-        { shouldPlay: true },
-        (status) => {
-          if (status.didJustFinish) {
+      
+      const soundObject = new Audio.Sound();
+      
+      try {
+        await soundObject.loadAsync({ uri: properUri }, { progressUpdateIntervalMillis: 500 });
+        
+        soundObject.setOnPlaybackStatusUpdate((status) => {          
+          if (status.isLoaded && status.didJustFinish) {
             setPlayingUri(null);
-            sound.unloadAsync();
+            soundObject.unloadAsync();
             soundRef.current = null;
           }
+          
+          if (!status.isLoaded && 'error' in status) {
+            setPlayingUri(null);
+            soundObject.unloadAsync();
+            soundRef.current = null;
+            showMessage({
+              message: "Error",
+              description: `Playback error: ${status.error}`,
+              type: "danger",
+            });
+          }
+        });
+        
+        await soundObject.playAsync();
+        
+        soundRef.current = soundObject;
+        setPlayingUri(uri);
+        
+      } catch (error) {
+        showMessage({
+          message: "Error",
+          description: "Erro carregando som",
+          type: "danger",
+        })
+        if (error instanceof Error) {
+          throw new Error(`Não foi possível carregar áudio: ${error.message}`);
+        } else {
+          throw new Error("Não foi possível carregar áudio: ocorreu um erro desconhecido");
         }
-      );
-  
-      soundRef.current = sound;
-      setPlayingUri(uri);
+      }
+      
     } catch (error) {
-      console.error("Error playing audio:", error);
       setPlayingUri(null);
       showMessage({
-        message: "Error",
-        description: `Could not play audio: ${error.message}`,
+        message: error instanceof Error ? error.message : "Erro",
+        description: "Ocorreu um erro desconhecido",
         type: "danger",
       });
     }
@@ -160,9 +181,13 @@ export default function AudiosScreen() {
       if (playingUri === recording.uri) {
         await stopAudioPlayback();
       }
-
-      await FileSystem.deleteAsync(recording.uri);
-
+  
+      const deleted = await FileOperations.deleteFile(recording.uri);
+      
+      if (!deleted) {
+        throw new Error("Erro ao excluir arquivo de áudio");
+      }
+  
       const updated = recordings.filter(
         (item) => item.timestamp !== recording.timestamp
       );
@@ -171,10 +196,16 @@ export default function AudiosScreen() {
       setShowOptionsModal(false);
       setShowConfirmDeleteModal(false);
       setSelectedRecording(null);
+      
+      showMessage({
+        message: "Sucesso",
+        description: "Áudio excluído com sucesso!",
+        type: "success",
+      });
     } catch (error) {
       showMessage({
-        message: "Erro",
-        description: "Erro ao excluir o áudio",
+        message: error instanceof Error ? error.message : "Erro",
+        description: "Erro ao excluir o áudio. Tente novamente.",
         type: "danger",
       });
     }
@@ -212,7 +243,7 @@ export default function AudiosScreen() {
       setShowOptionsModal(false);
     } catch (error) {
       showMessage({
-        message: "Erro",
+        message: error instanceof Error ? error.message : "Erro",
         description: "Erro ao atualizar vocalização",
         type: "danger",
       });
@@ -224,9 +255,9 @@ export default function AudiosScreen() {
     try {
       const vocalizations = await getVocalizacoes();
       setVocalizations(vocalizations);
-    } catch (error: any) {
+    } catch (error) {
       showMessage({
-        message: "Erro",
+        message: error instanceof Error ? error.message : "Erro",
         description: "Não foi possível carregar as vocalizações",
         type: "danger",
       });
@@ -260,7 +291,7 @@ export default function AudiosScreen() {
       });
     } catch (error) {
       showMessage({
-        message: "Erro",
+        message: error instanceof Error ? error.message : "Erro",
         description: "Erro ao enviar áudio",
         type: "danger",
       });
@@ -344,7 +375,7 @@ export default function AudiosScreen() {
       }
     } catch (error) {
       showMessage({
-        message: "Erro",
+        message: error instanceof Error ? error.message : "Erro",
         description: "Erro ao processar o envio em lote",
         type: "danger",
       });

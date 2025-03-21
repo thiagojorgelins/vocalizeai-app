@@ -11,15 +11,21 @@ export const uploadAudioFile = async (
       throw new Error("Token de autenticação não encontrado.");
     }
 
+    const normalizedUri = fileUri.startsWith('file://') 
+      ? fileUri 
+      : `file://${fileUri}`;
+        
+    const filename = normalizedUri.split('/').pop() || 'audio.m4a';
+    
     const formData = new FormData();
 
     formData.append("file", {
-      uri: fileUri,
-
-      name: "audio.m4a",
-      type: "audio/x-m4a",
+      uri: normalizedUri,
+      name: filename,
+      type: "audio/mp4",
     } as any);
 
+    
     const response = await api.post(
       `/audios?id_vocalizacao=${idVocalizacao}`,
       formData,
@@ -28,15 +34,22 @@ export const uploadAudioFile = async (
           Authorization: `Bearer ${token}`,
           "Content-Type": "multipart/form-data",
         },
+        timeout: 30000,
       }
     );
 
     return response.data; 
   } catch (error: any) {
-    const errorMessage =
-      error.response?.data?.detail ||
-      error.message ||
-      "Erro ao fazer upload do áudio.";
+    let errorMessage = "Erro ao fazer upload do áudio.";
+    
+    if (error.response) {
+      errorMessage = error.response.data?.detail || 
+                    `Erro do servidor: ${error.response.status}`;
+    } else if (error.request) {
+      errorMessage = "Servidor não respondeu ao upload.";
+    } else {
+      errorMessage = error.message || "Erro ao configurar upload.";
+    }
 
     throw new Error(errorMessage);
   }
