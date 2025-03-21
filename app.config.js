@@ -10,18 +10,19 @@ export default {
     scheme: "myapp",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
-    
+
     ios: {
       bundleIdentifier: "com.thiagolins.vocalizeai",
       supportsTablet: true,
       infoPlist: {
-        NSAppTransportSecurity: { 
-          NSAllowsArbitraryLoads: true 
+        NSAppTransportSecurity: {
+          NSAllowsArbitraryLoads: true
         },
         UIBackgroundModes: [
           "audio",
           "fetch",
-          "processing"
+          "processing",
+          "remote-notification"
         ],
         NSMicrophoneUsageDescription: "Precisa de acesso ao microfone para gravação de áudio",
         kTCCServiceMediaLibrary: "O aplicativo precisa de acesso à biblioteca de mídia para gravação de áudio",
@@ -37,15 +38,17 @@ export default {
       permissions: [
         "RECORD_AUDIO",
         "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_MICROPHONE",
         "WAKE_LOCK",
         "FOREGROUND_SERVICE_MEDIA_PLAYBACK",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.FOREGROUND_SERVICE",
-        "android.permission.WAKE_LOCK",
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS",
         "NOTIFICATIONS",
-        "android.permission.POST_NOTIFICATIONS",
-        "android.permission.RECEIVE_BOOT_COMPLETED"
+        "POST_NOTIFICATIONS",
+        "RECEIVE_BOOT_COMPLETED",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "VIBRATE"
       ],
       usesCleartextTraffic: true,
       foregroundService: {
@@ -53,7 +56,8 @@ export default {
         icon: "./assets/images/icon.png",
         notificationTitle: "Gravação em andamento",
         notificationColor: "#FF0000",
-        notificationIconColor: "#FF0000"
+        notificationIconColor: "#FF0000",
+        startOnBoot: true
       }
     },
 
@@ -84,21 +88,23 @@ export default {
               "FOREGROUND_SERVICE",
               "WAKE_LOCK",
               "FOREGROUND_SERVICE_MEDIA_PLAYBACK",
-              "android.permission.RECORD_AUDIO",
-              "android.permission.MODIFY_AUDIO_SETTINGS",
-              "android.permission.FOREGROUND_SERVICE",
-              "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
-              "android.permission.WAKE_LOCK",
+              "FOREGROUND_SERVICE_MICROPHONE",
+              "MODIFY_AUDIO_SETTINGS",
+              "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
               "NOTIFICATIONS",
-              "android.permission.POST_NOTIFICATIONS",
-              "android.permission.RECEIVE_BOOT_COMPLETED",
+              "POST_NOTIFICATIONS",
+              "RECEIVE_BOOT_COMPLETED",
+              "READ_EXTERNAL_STORAGE",
+              "WRITE_EXTERNAL_STORAGE",
+              "VIBRATE"
             ],
             foregroundService: {
               name: "Gravação de Áudio",
               icon: "./assets/images/icon.png",
               notificationTitle: "Gravação em andamento",
               notificationColor: "#FF0000",
-              notificationIconColor: "#FF0000"
+              notificationIconColor: "#FF0000",
+              startOnBoot: true
             },
             usesCleartextTraffic: true,
           },
@@ -107,7 +113,8 @@ export default {
               UIBackgroundModes: [
                 "audio",
                 "fetch",
-                "processing"
+                "processing",
+                "remote-notification"
               ],
               NSMicrophoneUsageDescription: "Precisa de acesso ao microfone para gravação de áudio",
               kTCCServiceMediaLibrary: "O aplicativo precisa de acesso à biblioteca de mídia para gravação de áudio",

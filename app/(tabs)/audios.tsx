@@ -100,37 +100,56 @@ export default function AudiosScreen() {
 
   async function handlePlayAudio(uri: string) {
     try {
+      // If already playing, stop
       if (soundRef.current) {
         await soundRef.current.stopAsync();
         await soundRef.current.unloadAsync();
         soundRef.current = null;
-
+  
         if (playingUri === uri) {
           setPlayingUri(null);
           return;
         }
       }
-
-      const { sound } = await Audio.Sound.createAsync(
-        { uri },
-        { shouldPlay: true }
+  
+      // Normalize URI to ensure it has file:// prefix
+      const properUri = uri.startsWith('file://') ? uri : `file://${uri}`;
+      
+      console.log(`Attempting to play audio: ${properUri}`);
+      
+      // Verify file before playing
+      const fileInfo = await FileSystem.getInfoAsync(properUri);
+      console.log("File info:", fileInfo);
+      
+      if (!fileInfo.exists) {
+        throw new Error("Audio file not found");
+      }
+      
+      if (fileInfo.size === 0) {
+        throw new Error("Audio file is empty or corrupted");
+      }
+  
+      // Create and configure sound object
+      const { sound, status } = await Audio.Sound.createAsync(
+        { uri: properUri },
+        { shouldPlay: true },
+        (status) => {
+          if (status.didJustFinish) {
+            setPlayingUri(null);
+            sound.unloadAsync();
+            soundRef.current = null;
+          }
+        }
       );
-
+  
       soundRef.current = sound;
       setPlayingUri(uri);
-
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
-          setPlayingUri(null);
-          sound.unloadAsync().then(() => {
-            soundRef.current = null;
-          });
-        }
-      });
     } catch (error) {
+      console.error("Error playing audio:", error);
+      setPlayingUri(null);
       showMessage({
-        message: "Erro",
-        description: "Não foi possível reproduzir o áudio",
+        message: "Error",
+        description: `Could not play audio: ${error.message}`,
         type: "danger",
       });
     }

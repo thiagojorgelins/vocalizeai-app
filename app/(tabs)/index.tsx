@@ -3,33 +3,33 @@ import ConfirmationModal from "@/components/ConfirmationModal";
 import VocalizationSelect from "@/components/VocalizationSelect";
 import { getVocalizacoes } from "@/services/vocalizacoesService";
 import { Vocalizacao } from "@/types/Vocalizacao";
+import BackgroundAudioRecorder from "@/utils/BackgroundAudioRecorder";
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from "expo-av";
 import * as FileSystem from "expo-file-system";
-import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
-import { FFmpegKit } from "ffmpeg-kit-react-native";
+import { Audio } from "expo-av";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   AppState,
+  Button,
   Modal,
+  PermissionsAndroid,
   Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import BackgroundTimer from "react-native-background-timer";
 import { showMessage } from "react-native-flash-message";
 
 export default function HomeScreen() {
   const router = useRouter();
   const appState = useRef(AppState.currentState);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
-  const [recordingTime, setRecordingTime] = useState(0);
+  const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
   const [showDiscardModal, setShowDiscardModal] = useState(false);
   const [showVocalizationModal, setShowVocalizationModal] = useState(false);
   const [vocalizations, setVocalizations] = useState<Vocalizacao[]>([]);
@@ -37,13 +37,13 @@ export default function HomeScreen() {
     number | null
   >(null);
   const [loadingVocalizations, setLoadingVocalizations] = useState(false);
-  const [recordingSegments, setRecordingSegments] = useState<string[]>([]);
+  const [outputFile, setOutputFile] = useState<string | null>(null);
   const [elapsedTimeBeforePause, setElapsedTimeBeforePause] = useState(0);
-  const [displayTime, setDisplayTime] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
 
-  const startTimeRef = useRef<number | null>(null);
-  const notificationRef = useRef<string | null>(null);
+  const timeUpdateListenerRef = useRef<Function | null>(null);
+  const statusChangeListenerRef = useRef<Function | null>(null);
+  const recordingCompleteListenerRef = useRef<Function | null>(null);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -56,7 +56,7 @@ export default function HomeScreen() {
   useEffect(() => {
     const setup = async () => {
       await setupApp();
-      await checkExistingRecording();
+      setupRecordingListeners();
     };
 
     setup();
@@ -65,136 +65,62 @@ export default function HomeScreen() {
     };
   }, []);
 
-  const checkExistingRecording = async () => {
-    try {
-      const startTimeStr = await AsyncStorage.getItem("recordingStartTime");
-      const isRecording = await AsyncStorage.getItem("isRecording");
-      const savedElapsedTime = await AsyncStorage.getItem(
-        "elapsedTimeBeforePause"
-      );
-
-      if (startTimeStr && isRecording === "true") {
-        const startTime = parseInt(startTimeStr);
-        startTimeRef.current = startTime;
-
-        const elapsedTime = savedElapsedTime ? parseInt(savedElapsedTime) : 0;
-        setElapsedTimeBeforePause(elapsedTime);
-
-        const currentTime = Math.floor((Date.now() - startTime) / 1000);
-        setDisplayTime(currentTime);
-        setRecordingTime(currentTime);
-
-        startTimer();
-      }
-    } catch (error) {
-      showMessage({
-        message: "Erro",
-        description: "Não foi possível verificar a gravação existente",
-        type: "danger",
-      });
-    }
-  };
-
   const setupApp = async () => {
-    await setupAudioMode();
-    await setupNotifications();
+    await requestPermissions();
     setupAppStateListener();
   };
 
-  const setupAudioMode = async () => {
-    try {
-      const { granted } = await Audio.requestPermissionsAsync();
-      if (granted) {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          staysActiveInBackground: true,
-          interruptionModeIOS: InterruptionModeIOS.DoNotMix,
-          playsInSilentModeIOS: true,
-          shouldDuckAndroid: true,
-          interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
-          playThroughEarpieceAndroid: false,
-        });
+  const requestPermissions = async () => {
+    if (Platform.OS === "android") {
+      try {
+        const grants = await PermissionsAndroid.requestMultiple([
+          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+        ]);
+
+        if (
+          grants[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO] !==
+          PermissionsAndroid.RESULTS.GRANTED
+        ) {
+          showMessage({
+            message: "Permissão Negada",
+            description: "Permissão para gravar áudio não concedida",
+            type: "danger",
+          });
+        }
+      } catch (err) {
+        console.warn(err);
       }
-    } catch (error) {
-      showMessage({
-        message: "Erro",
-        description: "Não foi possível configurar o modo de áudio",
-        type: "danger",
-      });
     }
   };
 
-  const setupNotifications = async () => {
-    try {
-      const { status, granted } = await Notifications.requestPermissionsAsync();
-
-      if (status === "denied") {
-        showMessage({
-          message: "Permissão Negada",
-          description:
-            "As notificações foram desativadas. Por favor, ative nas configurações do dispositivo.",
-          type: "warning",
-        });
-        return;
-      }
-
-      if (granted) {
-        if (Platform.OS === "android") {
-          await Notifications.setNotificationChannelAsync("recording", {
-            name: "Gravação",
-            importance: Notifications.AndroidImportance.HIGH,
-            lockscreenVisibility:
-              Notifications.AndroidNotificationVisibility.PUBLIC,
-            enableVibrate: false,
-            enableLights: false,
-            showBadge: false,
-            sound: null,
-          });
-        }
-
-        await Notifications.setNotificationHandler({
-          handleNotification: async () => ({
-            shouldShowAlert: true,
-            shouldPlaySound: false,
-            shouldSetBadge: false,
-            shouldVibrate: false,
-            priority: Notifications.AndroidNotificationPriority.MAX,
-          }),
-        });
-      } else {
-        showMessage({
-          message: "Notificações Desativadas",
-          description:
-            "Algumas funcionalidades podem ser limitadas sem permissão de notificação.",
-          type: "warning",
-        });
-      }
-    } catch (error) {
-      showMessage({
-        message: "Erro",
-        description: "Não foi possível configurar as notificações",
-        type: "danger",
+  const setupRecordingListeners = () => {
+    // Listener para atualizações de tempo
+    timeUpdateListenerRef.current =
+      BackgroundAudioRecorder.addTimeUpdateListener((time: number) => {
+        setRecordingTime(time);
       });
-    }
+
+    // Listener para mudanças de status (gravando, pausado)
+    statusChangeListenerRef.current =
+      BackgroundAudioRecorder.addStatusChangeListener((status: any) => {
+        setIsRecording(status.isRecording);
+        setIsPaused(status.isPaused);
+        setOutputFile(status.outputFile);
+      });
+
+    // Listener para quando a gravação for concluída
+    recordingCompleteListenerRef.current =
+      BackgroundAudioRecorder.addRecordingCompleteListener((data: any) => {
+        setOutputFile(data.outputFile);
+        setRecordingTime(data.duration);
+      });
   };
 
   const setupAppStateListener = () => {
     const subscription = AppState.addEventListener(
       "change",
       async (nextAppState) => {
-        if (
-          recording &&
-          appState.current.match(/inactive|background/) &&
-          nextAppState === "active"
-        ) {
-          if (startTimeRef.current) {
-            const elapsedSeconds = Math.floor(
-              (Date.now() - startTimeRef.current) / 1000
-            );
-            setRecordingTime(elapsedSeconds);
-            updateNotification(elapsedSeconds);
-          }
-        }
         appState.current = nextAppState;
       }
     );
@@ -204,198 +130,94 @@ export default function HomeScreen() {
     };
   };
 
-  const startTimer = async () => {
-    BackgroundTimer.stopBackgroundTimer();
-
-    await AsyncStorage.setItem(
-      "recordingStartTime",
-      startTimeRef.current!.toString()
-    );
-    await AsyncStorage.setItem("isRecording", "true");
-    await AsyncStorage.setItem(
-      "elapsedTimeBeforePause",
-      elapsedTimeBeforePause.toString()
-    );
-
-    BackgroundTimer.runBackgroundTimer(() => {
-      if (startTimeRef.current) {
-        const currentTime = Math.floor(
-          (Date.now() - startTimeRef.current) / 1000
-        );
-        const totalTime = currentTime;
-        setDisplayTime(totalTime);
-        setRecordingTime(totalTime);
-        updateNotification(totalTime);
-      }
-    }, 1000);
-  };
-
-  const stopTimer = async () => {
-    BackgroundTimer.stopBackgroundTimer();
-
-    startTimeRef.current = null;
-
-    await AsyncStorage.removeItem("recordingStartTime");
-    await AsyncStorage.removeItem("isRecording");
-
-    if (notificationRef.current) {
-      await Notifications.dismissNotificationAsync(notificationRef.current);
-      notificationRef.current = null;
-      await AsyncStorage.removeItem("currentNotificationId");
+  const cleanup = () => {
+    // Limpar os listeners quando o componente for desmontado
+    if (timeUpdateListenerRef.current) {
+      (timeUpdateListenerRef.current as Function)();
+      timeUpdateListenerRef.current = null;
     }
-  };
 
-  const updateNotification = async (time: number = recordingTime) => {
-    try {
-      if (!notificationRef.current) {
-        const identifier = await Notifications.scheduleNotificationAsync({
-          content: {
-            title: "Gravação em andamento",
-            body: `Tempo: ${formatTime(time)}`,
-            priority: Platform.OS === "android" ? "max" : undefined,
-            sound: false,
-            sticky: true,
-          },
-          trigger: null,
-        });
-        notificationRef.current = identifier;
-        await AsyncStorage.setItem("currentNotificationId", identifier);
-      } else {
-        await Notifications.scheduleNotificationAsync({
-          identifier: notificationRef.current,
-          content: {
-            title: "Gravação em andamento",
-            body: `Tempo: ${formatTime(time)}`,
-            data: { type: "recording" },
-            priority: Platform.OS === "android" ? "max" : undefined,
-            sound: false,
-            sticky: true,
-          },
-          trigger: null,
-        });
-      }
-    } catch (error) {
+    if (statusChangeListenerRef.current) {
+      (statusChangeListenerRef.current as Function)();
+      statusChangeListenerRef.current = null;
+    }
+
+    if (recordingCompleteListenerRef.current) {
+      (recordingCompleteListenerRef.current as Function)();
+      recordingCompleteListenerRef.current = null;
+    }
+
+    // Notificar o usuário se houver uma gravação ativa
+    if (isRecording) {
       showMessage({
-        message: "Erro",
-        description: "Não foi possível atualizar a notificação",
-        type: "danger",
+        message: "Gravação em andamento",
+        description: "A gravação continuará em segundo plano.",
+        type: "info",
       });
     }
   };
-
-  const cleanup = async () => {
-    if (recording) {
-      try {
-        const status = await recording.getStatusAsync();
-        if (status.canRecord) {
-          await recording.stopAndUnloadAsync();
-        }
-      } catch (error) {
-        showMessage({
-          message: "Erro",
-          description: "Não foi possível parar a gravação do áudio",
-          type: "danger",
-        });
-      }
-      setRecording(null);
-    }
-    
-    if (notificationRef.current) {
-      try {
-        await Notifications.dismissNotificationAsync(notificationRef.current);
-      } catch (error) {
-        showMessage({
-          message: "Erro",
-          description: "Não foi possível descartar a notificação",
-          type: "danger",
-        })
-      }
-      notificationRef.current = null;
-    }
-    
-    stopTimer();
-    BackgroundTimer.stopBackgroundTimer();
-  };
-  useEffect(() => {
-    return () => {
-      BackgroundTimer.stopBackgroundTimer();
-    };
-  }, []);
 
   const startRecording = async () => {
     if (isLoading) return;
+
     try {
       setIsLoading(true);
 
-      const { granted } = await Audio.getPermissionsAsync();
-      if (!granted) {
-        showMessage({
-          message: "Permissão Negada",
-          description: "Não há permissão para gravar áudio",
-          type: "danger",
-        });
-        return;
-      }
-
-      if (recording) {
-        try {
-          await recording.stopAndUnloadAsync()
-        } catch (error) {
-          showMessage({
-            message: "Erro ao pausar",
-            description: "Não foi possível parar a gravação do áudio",
-            type: "danger",
-          }); 
-        }
-      }
-      const newRecording = new Audio.Recording();
-      await newRecording.prepareToRecordAsync({
-        isMeteringEnabled: true,
-        android: {
-          extension: ".m4a",
-          outputFormat: Audio.AndroidOutputFormat.MPEG_4,
-          audioEncoder: Audio.AndroidAudioEncoder.AAC,
-          sampleRate: 44100,
-          numberOfChannels: 2,
-          bitRate: 128000,
-        },
-        ios: {
-          extension: ".m4a",
-          outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
-          audioQuality: Audio.IOSAudioQuality.HIGH,
-          sampleRate: 44100,
-          numberOfChannels: 2,
-          bitRate: 128000,
-          linearPCMBitDepth: 16,
-          linearPCMIsBigEndian: false,
-          linearPCMIsFloat: false,
-        },
-        web: {
-          mimeType: undefined,
-          bitsPerSecond: undefined,
-        },
-      });
-
-      await newRecording.startAsync();
-      setRecording(newRecording);
+      await BackgroundAudioRecorder.startRecording(elapsedTimeBeforePause);
+      setIsRecording(true);
       setIsPaused(false);
-
-      startTimeRef.current = Date.now() - elapsedTimeBeforePause * 1000;
-      startTimer();
-      updateNotification(elapsedTimeBeforePause);
-    } catch (error) {
+    } catch (error: any) {
       showMessage({
         message: "Erro ao gravar",
-        description: "Não foi possível iniciar a gravação do áudio",
+        description:
+          error.message || "Não foi possível iniciar a gravação do áudio",
         type: "danger",
       });
-      setRecording(null)
-    }
-    finally {
+    } finally {
       setIsLoading(false);
     }
-  } 
+  };
 
+  const pauseRecording = async () => {
+    if (isLoading) return;
+
+    try {
+      setIsLoading(true);
+
+      await BackgroundAudioRecorder.pauseRecording();
+      setIsPaused(true);
+      setElapsedTimeBeforePause(recordingTime);
+    } catch (error: any) {
+      showMessage({
+        message: "Erro ao pausar",
+        description:
+          error.message || "Não foi possível pausar a gravação do áudio",
+        type: "danger",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const resumeRecording = async () => {
+    if (isLoading) return;
+
+    try {
+      setIsLoading(true);
+
+      await BackgroundAudioRecorder.resumeRecording();
+      setIsPaused(false);
+    } catch (error: any) {
+      showMessage({
+        message: "Erro ao retomar",
+        description:
+          error.message || "Não foi possível retomar a gravação do áudio",
+        type: "danger",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const stopRecording = async () => {
     if (isLoading) return;
@@ -403,125 +225,61 @@ export default function HomeScreen() {
     try {
       setIsLoading(true);
 
-      if (recording) {
-        const status = await recording.getStatusAsync();
-
-        if (status.canRecord){
-          await recording.stopAndUnloadAsync();
-          const uri = recording.getURI();
-          if (uri) {
-            setRecordingSegments((prev) => [...prev, uri]);
-            setElapsedTimeBeforePause(displayTime);
-          }
-        } else {
-          showMessage({
-            message: "Erro",
-            description: "Não foi possível parar a gravação do áudio",
-            type: "danger",
-          });
-        }
-        
-        setRecording(null);
-        stopTimer();
-        setIsPaused(true);
-
-        if (notificationRef.current) {
-          await Notifications.dismissNotificationAsync(notificationRef.current);
-          notificationRef.current = null;
-        }
-      }
-    } catch (error) {
+      await BackgroundAudioRecorder.stopRecording();
+      // O estado será atualizado através dos listeners
+    } catch (error: any) {
       showMessage({
-        message: "Erro ao pausar",
-        description: "Não foi possível parar a gravação do áudio",
+        message: "Erro ao parar",
+        description:
+          error.message || "Não foi possível parar a gravação do áudio",
         type: "danger",
       });
-
-      setRecording(null);
-      setIsPaused(true);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleDiscard = async () => {
-    for (const uri of recordingSegments) {
-      try {
-        await FileSystem.deleteAsync(uri);
-      } catch (error) {
-        showMessage({
-          message: "Erro",
-          description: "Não foi possível descartar a gravação",
-          type: "danger",
-        });
-      }
-    }
-
-    setRecordingSegments([]);
-    setElapsedTimeBeforePause(0);
-    setDisplayTime(0);
-    setRecordingTime(0);
-    setIsPaused(false);
-    setShowDiscardModal(false);
-  };
-
-  const concatenateAudioSegments = async () => {
-    if (recordingSegments.length === 0) return null;
-    if (recordingSegments.length === 1) return recordingSegments[0];
-
     try {
-      const tempDirectory = `${FileSystem.cacheDirectory}temp_audio/`;
-      await FileSystem.makeDirectoryAsync(tempDirectory, {
-        intermediates: true,
-      });
+      setIsLoading(true);
 
-      const finalPath = `${tempDirectory}final_recording_${Date.now()}.m4a`;
-      const fileList = `${tempDirectory}filelist.txt`;
+      await BackgroundAudioRecorder.forceStopService();
 
-      const fileListContent = recordingSegments
-        .map((uri) => {
-          const cleanUri = uri.replace("file://", "");
-          return `file '${cleanUri}'`;
-        })
-        .join("\n");
-
-      await FileSystem.writeAsStringAsync(fileList, fileListContent);
-
-      const command = `-f concat -safe 0 -i ${fileList} -c copy ${finalPath}`;
-
-      const session = await FFmpegKit.execute(command);
-      const returnCode = await session.getReturnCode();
-
-      await FileSystem.deleteAsync(fileList);
-
-      if (returnCode.isValueSuccess()) {
-        for (const uri of recordingSegments) {
-          try {
-            await FileSystem.deleteAsync(uri);
-          } catch (error) {
-            showMessage({
-              message: "Erro",
-              description: "Não foi possível deletar o segmento de áudio",
-              type: "danger",
-            });
-          }
+      if (outputFile) {
+        try {
+          await FileSystem.deleteAsync(outputFile);
+          console.log("Arquivo excluído com sucesso:", outputFile);
+        } catch (error) {
+          console.error("Erro ao excluir arquivo:", error);
         }
-        return finalPath;
-      } else {
-        showMessage({
-          message: "Erro",
-          description: "Falha ao juntar os segmentos de áudio",
-          type: "danger",
-        });
-        return recordingSegments[0];
       }
+
+      setOutputFile(null);
+      setElapsedTimeBeforePause(0);
+      setRecordingTime(0);
+      setIsPaused(false);
+      setIsRecording(false);
+      setShowDiscardModal(false);
+
+      showMessage({
+        message: "Gravação descartada",
+        description: "A gravação foi descartada com sucesso.",
+        type: "info",
+      });
     } catch (error) {
+      setOutputFile(null);
+      setElapsedTimeBeforePause(0);
+      setRecordingTime(0);
+      setIsPaused(false);
+      setIsRecording(false);
+
       showMessage({
         message: "Erro",
-        description: "Não foi possível juntar os segmentos de áudio",
+        description: "Não foi possível descartar a gravação completamente.",
         type: "danger",
       });
-      return recordingSegments[0];
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -546,14 +304,16 @@ export default function HomeScreen() {
   }
 
   const handleRecordPress = async () => {
-    if (isLoading) return
+    if (isLoading) return;
 
-    if (recording) {
-      await stopRecording();
+    if (isRecording && !isPaused) {
+      await pauseRecording();
+    } else if (isRecording && isPaused) {
+      await resumeRecording();
     } else {
       await startRecording();
     }
-  }
+  };
 
   const openVocalizationModal = async () => {
     if (vocalizations.length === 0) {
@@ -566,6 +326,64 @@ export default function HomeScreen() {
     setShowVocalizationModal(false);
   };
 
+  const validateAudioFile = async (filePath: string) => {
+    try {
+      console.log("Validando arquivo de áudio:", filePath);
+
+      // Verificar se o arquivo existe
+      const fileInfo = await FileSystem.getInfoAsync(filePath);
+
+      if (!fileInfo.exists) {
+        console.error("O arquivo não existe:", filePath);
+        return {
+          valid: false,
+          message: "O arquivo de áudio não foi encontrado",
+        };
+      }
+
+      if (fileInfo.size === 0) {
+        console.error("O arquivo está vazio:", filePath);
+        return {
+          valid: false,
+          message: "O arquivo de áudio está vazio ou corrompido",
+        };
+      }
+
+      console.log("Tamanho do arquivo:", fileInfo.size, "bytes");
+
+      // Tentar carregar o áudio para verificar se pode ser reproduzido
+      try {
+        const properUri = filePath.startsWith("file://")
+          ? filePath
+          : `file://${filePath}`;
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: properUri },
+          { shouldPlay: false }
+        );
+
+        // Se chegou aqui, o arquivo provavelmente é válido
+        await sound.unloadAsync();
+
+        return {
+          valid: true,
+          message: "Arquivo de áudio validado com sucesso",
+        };
+      } catch (audioError) {
+        console.error("Erro ao validar áudio:", audioError);
+        return {
+          valid: false,
+          message: "O arquivo de áudio não pôde ser carregado para reprodução",
+        };
+      }
+    } catch (error) {
+      console.error("Erro na validação:", error);
+      return {
+        valid: false,
+        message: "Erro ao validar o arquivo de áudio",
+      };
+    }
+  };
+
   const handleSaveAudio = async () => {
     if (!selectedVocalizationId) {
       showMessage({
@@ -576,7 +394,7 @@ export default function HomeScreen() {
       return;
     }
 
-    if (recordingSegments.length === 0) {
+    if (!outputFile) {
       showMessage({
         message: "Nenhuma gravação",
         description: "Não foi encontrada gravação para salvar.",
@@ -585,17 +403,56 @@ export default function HomeScreen() {
       return;
     }
 
-    try {
-      const finalUri = await concatenateAudioSegments();
-      if (!finalUri) return;
+    setIsLoading(true);
 
-      const filename = `recording_${Date.now()}.m4a`;
+    try {
+      // Normalize file path - ensure it has file:// prefix
+      const normalizedPath = outputFile.startsWith("file://")
+        ? outputFile
+        : `file://${outputFile}`;
+
+      // Check if file exists and is valid
+      const fileInfo = await FileSystem.getInfoAsync(normalizedPath);
+      console.log("Informações do arquivo:", fileInfo);
+
+      if (!fileInfo.exists || fileInfo.size === 0) {
+        showMessage({
+          message: "Erro",
+          description: "O arquivo de áudio está vazio ou não foi encontrado",
+          type: "danger",
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // Wait for file system to properly close the file
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Generate a new unique filename
+      const timestamp = Date.now();
+      const filename = `recording_${timestamp}.m4a`;
       const newUri = `${FileSystem.documentDirectory}${filename}`;
 
-      await FileSystem.moveAsync({
-        from: finalUri,
+      console.log(`Copiando de ${normalizedPath} para ${newUri}`);
+
+      // Force stop recording service to ensure file is closed
+      await BackgroundAudioRecorder.forceStopService();
+
+      // Copy with correct paths
+      await FileSystem.copyAsync({
+        from: normalizedPath,
         to: newUri,
       });
+
+      // Verify the new file
+      const newFileInfo = await FileSystem.getInfoAsync(newUri);
+      if (!newFileInfo.exists || newFileInfo.size === 0) {
+        throw new Error("O arquivo copiado está vazio ou não foi encontrado");
+      }
+
+      console.log(
+        `Arquivo copiado com sucesso. Tamanho: ${newFileInfo.size} bytes`
+      );
 
       const existingRecordings = await AsyncStorage.getItem("recordings");
       const recordings = existingRecordings
@@ -604,8 +461,8 @@ export default function HomeScreen() {
 
       recordings.push({
         uri: newUri,
-        timestamp: Date.now(),
-        duration: displayTime,
+        timestamp: timestamp,
+        duration: recordingTime,
         vocalizationId: selectedVocalizationId,
         vocalizationName: vocalizations.find(
           (v) => v.id === selectedVocalizationId
@@ -615,24 +472,30 @@ export default function HomeScreen() {
 
       await AsyncStorage.setItem("recordings", JSON.stringify(recordings));
 
-      setRecordingSegments([]);
+      setOutputFile(null);
       setElapsedTimeBeforePause(0);
-      setDisplayTime(0);
       setRecordingTime(0);
       setIsPaused(false);
+      setIsRecording(false);
       setShowVocalizationModal(false);
 
-      await AsyncStorage.removeItem("recordingStartTime");
-      await AsyncStorage.removeItem("isRecording");
-      await AsyncStorage.removeItem("elapsedTimeBeforePause");
-
       router.push("/audios");
+
+      showMessage({
+        message: "Sucesso",
+        description: "Gravação salva com sucesso!",
+        type: "success",
+      });
     } catch (error) {
+      console.error("Erro ao salvar áudio:", error);
       showMessage({
         message: "Erro ao salvar",
-        description: "Não foi possível salvar o áudio",
+        description:
+          error instanceof Error ? error.message : "Erro desconhecido",
         type: "danger",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -641,8 +504,8 @@ export default function HomeScreen() {
       <View style={styles.timerSection}>
         <View style={styles.timerContainer}>
           <Text style={styles.timerLabel}>Tempo de Gravação</Text>
-          <Text style={styles.timer}>{formatTime(displayTime)}</Text>
-          {recording && (
+          <Text style={styles.timer}>{formatTime(recordingTime)}</Text>
+          {isRecording && !isPaused && (
             <View style={styles.recordingIndicator}>
               <View style={styles.recordingDot} />
               <Text style={styles.recordingText}>Gravando</Text>
@@ -652,13 +515,13 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.controlContainer}>
-        {isPaused && (
+        {(isPaused || (outputFile && !isRecording)) && (
           <Pressable
             onPress={() => setShowDiscardModal(true)}
             style={({ pressed }) => [
               styles.controlButton,
               styles.discardButton,
-              pressed && styles.buttonPressed
+              pressed && styles.buttonPressed,
             ]}
           >
             <MaterialIcons name="delete-outline" size={32} color="white" />
@@ -667,39 +530,49 @@ export default function HomeScreen() {
         )}
 
         <Pressable
-  style={({ pressed }) => [
-    styles.controlButton,
-    styles.recordButton,
-    recording && styles.recordingButton,
-    isLoading && styles.disabledButton,
-    pressed && styles.buttonPressed
-  ]}
-  onPress={handleRecordPress}
-  disabled={isLoading}
->
-  {isLoading ? (
-    <ActivityIndicator color="white" size="large" />
-  ) : (
-    <>
-      <MaterialIcons
-        name={recording ? "pause" : isPaused ? "play-arrow" : "mic"}
-        size={40}
-        color="white"
-      />
-      <Text style={styles.buttonText}>
-        {recording ? "Pausar" : isPaused ? "Continuar" : "Gravar"}
-      </Text>
-    </>
-  )}
-</Pressable>
+          style={({ pressed }) => [
+            styles.controlButton,
+            styles.recordButton,
+            isRecording && !isPaused && styles.recordingButton,
+            isLoading && styles.disabledButton,
+            pressed && styles.buttonPressed,
+          ]}
+          onPress={handleRecordPress}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <ActivityIndicator color="white" size="large" />
+          ) : (
+            <>
+              <MaterialIcons
+                name={
+                  isRecording && !isPaused
+                    ? "pause"
+                    : isPaused
+                    ? "play-arrow"
+                    : "mic"
+                }
+                size={40}
+                color="white"
+              />
+              <Text style={styles.buttonText}>
+                {isRecording && !isPaused
+                  ? "Pausar"
+                  : isPaused
+                  ? "Continuar"
+                  : "Gravar"}
+              </Text>
+            </>
+          )}
+        </Pressable>
 
-        {isPaused && (
+        {(isPaused || (outputFile && !isRecording)) && (
           <Pressable
             onPress={openVocalizationModal}
             style={({ pressed }) => [
               styles.controlButton,
               styles.saveButton,
-              pressed && styles.buttonPressed
+              pressed && styles.buttonPressed,
             ]}
           >
             <MaterialIcons name="save" size={32} color="white" />
@@ -718,9 +591,9 @@ export default function HomeScreen() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Selecionar Rótulo</Text>
-              <MaterialIcons 
-                name="close" 
-                size={24} 
+              <MaterialIcons
+                name="close"
+                size={24}
                 color="#666"
                 onPress={closeVocalizationModal}
                 style={styles.modalClose}
@@ -763,7 +636,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: "#F5F5F5",
     paddingHorizontal: 20,
   },
   disabledButton: {
@@ -771,12 +644,12 @@ const styles = StyleSheet.create({
   },
   timerSection: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   timerContainer: {
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
     padding: 32,
     borderRadius: 16,
     shadowColor: "#000",
@@ -790,85 +663,85 @@ const styles = StyleSheet.create({
   },
   timerLabel: {
     fontSize: 16,
-    color: '#666',
+    color: "#666",
     marginBottom: 8,
   },
   timer: {
     fontSize: 48,
-    fontWeight: '700',
-    color: '#2196F3',
-    fontVariant: ['tabular-nums'],
+    fontWeight: "700",
+    color: "#2196F3",
+    fontVariant: ["tabular-nums"],
   },
   recordingIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: 16,
   },
   recordingDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#F44336',
+    backgroundColor: "#F44336",
     marginRight: 8,
   },
   recordingText: {
-    color: '#F44336',
+    color: "#F44336",
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   controlContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     paddingBottom: 40,
     gap: 20,
   },
   controlButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     padding: 16,
     borderRadius: 16,
-    backgroundColor: '#2196F3',
+    backgroundColor: "#2196F3",
     minWidth: 96,
   },
   recordButton: {
-    backgroundColor: '#2196F3',
+    backgroundColor: "#2196F3",
     width: 100,
     height: 100,
     borderRadius: 50,
   },
   recordingButton: {
-    backgroundColor: '#F44336',
+    backgroundColor: "#F44336",
   },
   discardButton: {
-    backgroundColor: '#757575',
+    backgroundColor: "#757575",
   },
   saveButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: "#4CAF50",
   },
   buttonPressed: {
     opacity: 0.8,
     transform: [{ scale: 0.98 }],
   },
   buttonText: {
-    color: '#FFF',
+    color: "#FFF",
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     marginTop: 4,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: '#FFF',
+    backgroundColor: "#FFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 24,
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: -2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
@@ -879,15 +752,15 @@ const styles = StyleSheet.create({
     }),
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 20,
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#212121',
+    fontWeight: "600",
+    color: "#212121",
   },
   modalClose: {
     padding: 4,

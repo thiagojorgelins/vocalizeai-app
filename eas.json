@@ -1,0 +1,12 @@
+{
+  "build": {
+    "production": {
+      "android": {
+        "buildType": "apk",
+        "env": {
+          "EXPO_PUBLIC_API_URL": "http://167.172.231.4:8000"
+        }
+      }
+    }
+  }
+}
