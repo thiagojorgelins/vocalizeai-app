@@ -22,6 +22,12 @@ export default function ConfirmationModal({
   error,
   errorMessage,
   isLoading,
+  confirmText = "Confirmar",
+  cancelText = "Cancelar",
+  confirmColor = "#4CAF50",
+  cancelColor = "#F44336",
+  confirmIcon,
+  confirmDisabled,
 }: ConfirmationModalProps) {
   const [inputValue, setInputValue] = React.useState("");
   const [localError, setLocalError] = React.useState("");
@@ -85,18 +91,19 @@ export default function ConfirmationModal({
               
               <View style={styles.modalButtons}>
                 <ButtonCustom
-                  title="Cancelar"
+                  title={cancelText}
                   onPress={onCancel}
-                  color="#F44336"
+                  color={cancelColor}
                   style={{ width: "45%" }}
                   disabled={isLoading}
                 />
                 <ButtonCustom
-                  title="Confirmar"
+                  title={confirmText}
                   onPress={handleConfirm}
-                  color="#4CAF50"
+                  color={confirmColor}
                   style={{ width: "45%" }}
-                  disabled={isLoading}
+                  disabled={confirmDisabled || isLoading}
+                  icon={confirmIcon}
                 />
               </View>
               

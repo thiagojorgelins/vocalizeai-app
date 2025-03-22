@@ -17,4 +17,10 @@ export interface ConfirmationModalProps {
   errorMessage?: string;
   isLoading?: boolean;
   style?: StyleProp<ViewStyle>;
+  confirmText?: string;
+  cancelText?: string;
+  confirmColor?: string;
+  cancelColor?: string;
+  confirmIcon?: React.ReactNode;
+  confirmDisabled?: boolean;
 }

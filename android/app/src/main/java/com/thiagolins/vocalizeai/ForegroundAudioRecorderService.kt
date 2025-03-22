@@ -10,7 +10,6 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.media.MediaRecorder
 import android.os.Build
-import android.os.Environment
 import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
@@ -45,7 +44,6 @@ class ForegroundAudioRecorderService : Service() {
     private val broadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == "com.thiagolins.vocalizeai.REQUEST_OUTPUT_FILE") {
-                Log.d(TAG, "Solicitação de caminho de arquivo recebida, respondendo com: $outputFile")
                 sendBroadcast(Intent("com.thiagolins.vocalizeai.OUTPUT_FILE_SET")
                     .putExtra("outputFile", outputFile))
             }
@@ -54,28 +52,19 @@ class ForegroundAudioRecorderService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "Serviço criado")
         createNotificationChannel()
         acquireWakeLock()
         
         val filter = IntentFilter("com.thiagolins.vocalizeai.REQUEST_OUTPUT_FILE")
-        val timeResetFilter = IntentFilter("com.thiagolins.vocalizeai.RESET_RECORDING_TIME")
-        registerReceiver(object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                Log.d(TAG, "Recebido comando para resetar o tempo")
-                elapsedTimeBeforePause = 0
-                currentRecordingTime = 0
-                
-                sendBroadcast(Intent("com.thiagolins.vocalizeai.RECORDING_TIME_UPDATE")
-                    .putExtra("currentTime", 0L)
-                    .putExtra("outputFile", outputFile))
-            }
-        }, timeResetFilter)
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(broadcastReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(broadcastReceiver, filter)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d(TAG, "onStartCommand: ${intent?.action}")
-        
         when (intent?.action) {
             ACTION_START_RECORDING -> {
                 elapsedTimeBeforePause = intent.getLongExtra(EXTRA_ELAPSED_TIME, 0)
@@ -123,7 +112,6 @@ class ForegroundAudioRecorderService : Service() {
     }
 
     private fun acquireWakeLock() {
-        Log.d(TAG, "Adquirindo WakeLock")
         try {
             val powerManager = getSystemService(POWER_SERVICE) as PowerManager
             wakeLock = powerManager.newWakeLock(
@@ -138,27 +126,27 @@ class ForegroundAudioRecorderService : Service() {
 
     private fun startRecording() {
         if (isRecording) {
-            Log.d(TAG, "Already recording, ignoring startRecording")
             return
         }
 
         try {
-            Log.d(TAG, "Starting recording")
-
             currentRecordingTime = elapsedTimeBeforePause
             
             val soundDir = File(applicationContext.filesDir, "audiorecordings")
-              if (!soundDir.exists()) {
-                  soundDir.mkdirs()
+            if (!soundDir.exists()) {
+                soundDir.mkdirs()
             }
+
             soundDir.setReadable(true, false)
             soundDir.setWritable(true, false)
+            soundDir.setExecutable(true, false)
 
             val fileName = "recording_${System.currentTimeMillis()}.m4a"
             val file = File(soundDir, fileName)
             outputFile = file.absolutePath
-
-            Log.d(TAG, "Saving to: $outputFile")
+            
+            sendBroadcast(Intent("com.thiagolins.vocalizeai.OUTPUT_FILE_SET")
+                .putExtra("outputFile", outputFile))
 
             mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 MediaRecorder(this)
@@ -168,19 +156,29 @@ class ForegroundAudioRecorderService : Service() {
             }
 
             mediaRecorder?.apply {
-                setAudioSource(MediaRecorder.AudioSource.MIC)
-                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-                setAudioEncodingBitRate(256000)
-                setAudioSamplingRate(44100)
-                setOutputFile(outputFile)
-                
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    setAudioChannels(2) 
+                try {
+                    try {
+                        setAudioSource(MediaRecorder.AudioSource.MIC)
+                    } catch (e: Exception) {
+                        setAudioSource(MediaRecorder.AudioSource.CAMCORDER)
+                    }
+                    
+                    setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                    setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                    setAudioEncodingBitRate(256000)
+                    setAudioSamplingRate(44100)
+                    setOutputFile(outputFile)
+                    
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        setAudioChannels(2)
+                    }
+                    
+                    prepare()
+                    start()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Erro ao configurar MediaRecorder: ${e.message}")
+                    throw e
                 }
-                
-                prepare()
-                start()
             }
 
             isRecording = true
@@ -194,11 +192,8 @@ class ForegroundAudioRecorderService : Service() {
                 .putExtra("isPaused", false)
                 .putExtra("outputFile", outputFile)
                 .putExtra("currentTime", currentRecordingTime))
-
-            Log.d(TAG, "Recording started successfully")
         } catch (e: Exception) {
             Log.e(TAG, "Error starting recording: ${e.message}")
-            e.printStackTrace()
             
             try {
                 mediaRecorder?.release()
@@ -217,7 +212,6 @@ class ForegroundAudioRecorderService : Service() {
         if (!isRecording || isPaused) return
 
         try {
-            Log.d(TAG, "Pausando gravação")
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 mediaRecorder?.pause()
                 isPaused = true
@@ -231,15 +225,11 @@ class ForegroundAudioRecorderService : Service() {
                     .putExtra("isPaused", true)
                     .putExtra("outputFile", outputFile)
                     .putExtra("currentTime", currentRecordingTime))
-                    
-                Log.d(TAG, "Gravação pausada com sucesso")
             } else {
-                Log.d(TAG, "Versão do Android não suporta pausar gravação, parando...")
                 stopRecording()
             }
         } catch (e: Exception) {
             Log.e(TAG, "Erro ao pausar gravação: ${e.message}")
-            e.printStackTrace()
         }
     }
 
@@ -247,7 +237,6 @@ class ForegroundAudioRecorderService : Service() {
         if (!isRecording || !isPaused) return
 
         try {
-            Log.d(TAG, "Retomando gravação")
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 mediaRecorder?.resume()
                 isPaused = false
@@ -258,21 +247,16 @@ class ForegroundAudioRecorderService : Service() {
                     .putExtra("isPaused", false)
                     .putExtra("outputFile", outputFile)
                     .putExtra("currentTime", currentRecordingTime))
-                    
-                Log.d(TAG, "Gravação retomada com sucesso")
             } else {
-                Log.d(TAG, "Versão do Android não suporta retomar gravação, iniciando nova...")
                 startRecording()
             }
         } catch (e: Exception) {
             Log.e(TAG, "Erro ao retomar gravação: ${e.message}")
-            e.printStackTrace()
         }
     }
 
     private fun stopRecording(): String? {
         if (!isRecording) {
-            Log.d(TAG, "Not recording, returning null")
             return null
         }
 
@@ -282,76 +266,90 @@ class ForegroundAudioRecorderService : Service() {
         val finalOutputFile = outputFile
         
         try {
-            Log.d(TAG, "Stopping recording")
-            
             try {
                 mediaRecorder?.stop()
-                Log.d(TAG, "MediaRecorder stopped successfully")
             } catch (e: Exception) {
                 Log.e(TAG, "Error stopping MediaRecorder: ${e.message}")
-                e.printStackTrace()
             }
             
             try {
                 mediaRecorder?.reset()
                 mediaRecorder?.release()
-                Log.d(TAG, "MediaRecorder released successfully")
             } catch (e: Exception) {
                 Log.e(TAG, "Error releasing MediaRecorder: ${e.message}")
-                e.printStackTrace()
             } finally {
                 mediaRecorder = null
             }
             
-            Thread.sleep(200)
+            Thread.sleep(500)
             
             if (finalOutputFile != null) {
                 val file = File(finalOutputFile)
+                
                 if (file.exists()) {
                     val fileSize = file.length()
-                    Log.d(TAG, "Recorded file: $finalOutputFile, size: $fileSize bytes")
 
                     if (fileSize > 0) {
                         file.setReadable(true, false)
                         file.setWritable(true, false)
                         
                         try {
-                            val validFile = validateAudioFile(file)
-                            if (!validFile) {
-                                Log.e(TAG, "File validation failed")
-                                throw Exception("File validation failed")
+                            val cacheDir = applicationContext.filesDir
+                            val accessibleFile = File(cacheDir, "latest_recording_${System.currentTimeMillis()}.m4a")
+                            
+                            file.inputStream().use { input ->
+                                accessibleFile.outputStream().use { output ->
+                                    input.copyTo(output)
+                                }
                             }
+                            
+                            accessibleFile.setReadable(true, false)
+                            accessibleFile.setWritable(true, false)
+                            
+                            for (i in 0..2) {
+                                try {
+                                    val intent = Intent("com.thiagolins.vocalizeai.RECORDING_COMPLETED")
+                                        .putExtra("outputFile", accessibleFile.absolutePath)
+                                        .putExtra("originalFile", finalOutputFile)
+                                        .putExtra("duration", currentRecordingTime)
+                                    
+                                    intent.setPackage(packageName)
+                                    sendBroadcast(intent)
+                                    
+                                    Thread.sleep(100)
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Erro ao enviar broadcast na tentativa ${i+1}: ${e.message}")
+                                }
+                            }
+                            
+                            resetRecordingState(accessibleFile.absolutePath)
+                            return accessibleFile.absolutePath
                         } catch (e: Exception) {
-                            Log.e(TAG, "File validation error: ${e.message}")
+                            Log.e(TAG, "Erro ao tornar arquivo acessível: ${e.message}")
+                            
+                            sendBroadcast(Intent("com.thiagolins.vocalizeai.RECORDING_COMPLETED")
+                                .putExtra("outputFile", finalOutputFile)
+                                .putExtra("duration", currentRecordingTime))
+                            
+                            resetRecordingState(finalOutputFile)
+                            return finalOutputFile
                         }
-
-                        sendBroadcast(Intent("com.thiagolins.vocalizeai.RECORDING_COMPLETED")
-                            .putExtra("outputFile", finalOutputFile)
-                            .putExtra("duration", currentRecordingTime))
-                        Log.d(TAG, "RECORDING_COMPLETED event sent")
-                        
-                        resetRecordingState()
-                        return finalOutputFile
                     } else {
-                        Log.e(TAG, "Error: Recorded file has zero size")
                         file.delete()
-                        resetRecordingState()
+                        resetRecordingState(null)
                         return null
                     }
                 } else {
-                    Log.e(TAG, "Error: Recorded file doesn't exist")
-                    resetRecordingState()
+                    resetRecordingState(null)
                     return null
                 }
             } else {
-                Log.e(TAG, "Error: outputFile is null when stopping recording")
-                resetRecordingState()
+                resetRecordingState(null)
                 return null
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error stopping recording: ${e.message}")
-            e.printStackTrace()
-            resetRecordingState()
+            resetRecordingState(null)
             return null
         }
     }
@@ -359,7 +357,6 @@ class ForegroundAudioRecorderService : Service() {
     private fun validateAudioFile(file: File): Boolean {
         try {
             if (!file.exists() || file.length() == 0L) {
-                Log.e(TAG, "File validation failed: File doesn't exist or is empty")
                 return false
             }
             
@@ -370,12 +367,10 @@ class ForegroundAudioRecorderService : Service() {
         }
     }
 
-    private fun resetRecordingState() {
-        Log.d(TAG, "Resetando estado da gravação")
-
+    private fun resetRecordingState(finalOutputFile: String? = null) {
         isRecording = false
         isPaused = false
-        outputFile = null
+        outputFile = finalOutputFile
         currentRecordingTime = 0
         elapsedTimeBeforePause = 0
         recordingStartTime = 0
@@ -384,9 +379,7 @@ class ForegroundAudioRecorderService : Service() {
             .putExtra("isRecording", false)
             .putExtra("isPaused", false)
             .putExtra("currentTime", 0)
-            .putExtra("outputFile", null as String?))
-
-        Log.d(TAG, "Estado de gravação resetado com sucesso")
+            .putExtra("outputFile", finalOutputFile))
     }
 
     private fun startTimer() {
@@ -394,24 +387,40 @@ class ForegroundAudioRecorderService : Service() {
         timer = null
         
         timer = Timer()
-        
+        var lastFileSize = 0L
+
         val startTimeMs = System.currentTimeMillis()
         
         timer?.scheduleAtFixedRate(object : TimerTask() {
             override fun run() {
-                val elapsedSeconds = ((System.currentTimeMillis() - startTimeMs) / 1000).toInt()
-                
-                currentRecordingTime = elapsedTimeBeforePause + elapsedSeconds
-                
-                updateNotification()
-                
-                sendBroadcast(Intent("com.thiagolins.vocalizeai.RECORDING_TIME_UPDATE")
-                    .putExtra("currentTime", currentRecordingTime)
-                    .putExtra("outputFile", outputFile))
+                try {
+                    val elapsedSeconds = ((System.currentTimeMillis() - startTimeMs) / 1000).toInt()
+                    
+                    currentRecordingTime = elapsedTimeBeforePause + elapsedSeconds
+                    
+                    updateNotification()
+                    
+                    sendTimeUpdateBroadcast()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Erro no timer: ${e.message}")
+                }
             }
         }, 0, 1000)
     }
-    
+
+    private fun sendTimeUpdateBroadcast() {
+        try {
+            val intent = Intent("com.thiagolins.vocalizeai.RECORDING_TIME_UPDATE")
+            intent.putExtra("currentTime", currentRecordingTime)
+            intent.putExtra("outputFile", outputFile)
+            intent.setPackage(packageName)
+            
+            sendBroadcast(intent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro ao enviar broadcast de tempo: ${e.message}")
+        }
+    }
+
     private fun clearState() {
         isRecording = false
         isPaused = false
@@ -424,8 +433,6 @@ class ForegroundAudioRecorderService : Service() {
             .putExtra("isPaused", false)
             .putExtra("currentTime", 0L)
             .putExtra("outputFile", null as String?))
-            
-        Log.d(TAG, "Estado completamente resetado")
     }
 
     private fun formatTime(seconds: Long): String {
@@ -462,12 +469,14 @@ class ForegroundAudioRecorderService : Service() {
         )
         
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(if (isPaused) "Gravação pausada" else "Gravação em andamento")
-            .setContentText("Tempo: $formattedTime")
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentIntent(pendingIntent)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setOngoing(true)
+          .setContentTitle(if (isPaused) "Gravação pausada" else "Gravação em andamento")
+          .setContentText("Tempo: $formattedTime")
+          .setSmallIcon(R.drawable.ic_notification)
+          .setContentIntent(pendingIntent)
+          .setPriority(NotificationCompat.PRIORITY_LOW)
+          .setOngoing(true)
+          .setOnlyAlertOnce(true) 
+
         
         builder.addAction(
             android.R.drawable.ic_media_pause, 
@@ -477,7 +486,7 @@ class ForegroundAudioRecorderService : Service() {
         
         builder.addAction(
             android.R.drawable.ic_media_previous,
-            "Parar",
+            "Cancelar",
             stopPendingIntent
         )
         
@@ -506,11 +515,9 @@ class ForegroundAudioRecorderService : Service() {
     private fun clearNotification() {
         val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.cancel(NOTIFICATION_ID)
-        Log.d(TAG, "Notificação removida")
     }
 
     override fun onDestroy() {
-        Log.d(TAG, "Serviço destruído")
         stopRecording()
         clearNotification()
         clearState()
@@ -530,7 +537,6 @@ class ForegroundAudioRecorderService : Service() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        Log.d(TAG, "onTaskRemoved chamado")
         showNotification("Gravação continua em segundo plano")
         super.onTaskRemoved(rootIntent)
     }
