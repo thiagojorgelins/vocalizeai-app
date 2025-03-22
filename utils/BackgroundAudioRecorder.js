@@ -1,4 +1,5 @@
-import { NativeModules, NativeEventEmitter, Platform } from 'react-native';
+import * as FileSystem from 'expo-file-system';
+import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 
 const { BackgroundAudioRecorder } = NativeModules;
 
@@ -82,10 +83,6 @@ class AudioRecorderService {
     }
 
     try {
-      const filePath = this._outputFile.startsWith('file://')
-        ? this._outputFile.slice(7)
-        : this._outputFile;
-
       const fileInfo = await FileSystem.getInfoAsync(this._outputFile);
 
       if (fileInfo.exists && fileInfo.size > 0) {
@@ -103,12 +100,20 @@ class AudioRecorderService {
     }
   }
 
-  resetState() {
+async resetState() {
+  if (!BackgroundAudioRecorder) {
+    console.warn('Módulo nativo BackgroundAudioRecorder não disponível para resetState');
+    return false;
+  }
+
+  try {
+    await BackgroundAudioRecorder.forceStopService();
+    
     this._isRecording = false;
     this._isPaused = false;
     this._recordingTime = 0;
     this._outputFile = null;
-
+    
     this._statusChangeListeners.forEach(listener => {
       listener({
         isRecording: false,
@@ -117,9 +122,13 @@ class AudioRecorderService {
         outputFile: null
       });
     });
-
+    
     return true;
+  } catch (error) {
+    console.error('Erro ao resetar estado:', error);
+    return false;
   }
+}
 
   async verifyRecording() {
     if (!this._outputFile) {
@@ -219,7 +228,11 @@ class AudioRecorderService {
     }
 
     this._timeUpdateListeners.forEach(listener => {
-      listener(this._recordingTime);
+      try {
+        listener(this._recordingTime);
+      } catch (error) {
+        console.error("Erro ao notificar listener de tempo:", error);
+      }
     });
   }
 
@@ -235,6 +248,86 @@ class AudioRecorderService {
     });
   }
 
+  async syncOutputFile() {
+    if (!BackgroundAudioRecorder) {
+      throw new Error('Módulo nativo BackgroundAudioRecorder não disponível');
+    }
+  
+    try {
+      const filePath = await BackgroundAudioRecorder.getOutputFilePath();
+  
+      if (filePath) {
+        this._outputFile = filePath;
+  
+        this._statusChangeListeners.forEach(listener => {
+          listener({
+            isRecording: this._isRecording,
+            isPaused: this._isPaused,
+            currentTime: this._recordingTime,
+            outputFile: this._outputFile
+          });
+        });
+  
+        try {
+          const normalizedPath = filePath.startsWith('file://') 
+            ? filePath 
+            : `file://${filePath}`;
+            
+          const fileInfo = await FileSystem.getInfoAsync(normalizedPath);
+        } catch (error) {
+          console.error("Erro ao verificar arquivo:", error);
+        }
+  
+        return filePath;
+      } else {
+        
+        if (this._outputFile) {
+          try {
+            const normalizedPath = this._outputFile.startsWith('file://') 
+              ? this._outputFile 
+              : `file://${this._outputFile}`;
+              
+            const fileInfo = await FileSystem.getInfoAsync(normalizedPath);
+            
+            if (fileInfo.exists && fileInfo.size > 0) {
+              return this._outputFile;
+            }
+          } catch (error) {
+            console.error("Erro ao verificar arquivo memorizado:", error);
+          }
+        }
+        
+        return null;
+      }
+    } catch (error) {
+      console.error('Erro ao sincronizar arquivo de saída:', error);
+      throw error;
+    }
+  }
+
+  async getStatus() {
+    if (Platform.OS !== 'android') {
+      throw new Error('Gravação em segundo plano disponível apenas para Android');
+    }
+    
+    try {
+      return {
+        isRecording: this._isRecording,
+        isPaused: this._isPaused,
+        currentTime: this._recordingTime,
+        outputFile: this._outputFile
+      };
+
+    } catch (error) {
+      console.error("Erro ao obter status da gravação:", error);
+      return {
+        isRecording: false,
+        isPaused: false,
+        currentTime: 0,
+        outputFile: null
+      };
+    }
+  }
   async startRecording(elapsedTimeBeforePause = 0) {
     if (Platform.OS !== 'android') {
       throw new Error('Gravação em segundo plano disponível apenas para Android');
@@ -323,7 +416,7 @@ class AudioRecorderService {
     return this._recordingTime;
   }
 
-  getOutputFile() {
+  getOutputFilePath() {
     if (!this._outputFile) {
       return null;
     }

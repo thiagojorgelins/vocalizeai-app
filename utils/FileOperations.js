@@ -49,6 +49,42 @@ const FileOperationsModule = {
       
       return dirPath;
     }
+  },
+
+  async cleanAudioDirectory() {
+    if (Platform.OS === 'android') {
+      try {
+        return await FileOperations.cleanAudioDirectory();
+      } catch (error) {
+        console.error('Error cleaning audio directory:', error);
+        return 0;
+      }
+    } else {
+      try {
+        const dirPath = FileSystem.documentDirectory + 'audio/';
+        const dirInfo = await FileSystem.getInfoAsync(dirPath);
+        
+        if (dirInfo.exists && dirInfo.isDirectory) {
+          const files = await FileSystem.readDirectoryAsync(dirPath);
+          let deletedCount = 0;
+          
+          for (const file of files) {
+            try {
+              await FileSystem.deleteAsync(dirPath + file, { idempotent: true });
+              deletedCount++;
+            } catch (error) {
+              console.error(`Failed to delete ${file}:`, error);
+            }
+          }
+          
+          return deletedCount;
+        }
+        return 0;
+      } catch (error) {
+        console.error('Error cleaning audio directory with FileSystem:', error);
+        return 0;
+      }
+    }
   }
 };
 

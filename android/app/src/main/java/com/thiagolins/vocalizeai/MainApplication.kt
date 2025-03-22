@@ -13,6 +13,7 @@ import com.facebook.react.defaults.DefaultReactNativeHost
 import com.facebook.react.soloader.OpenSourceMergedSoMapping
 import com.facebook.soloader.SoLoader
 import com.thiagolins.vocalizeai.AudioRecorderPackage;
+import com.thiagolins.vocalizeai.FileOperationsPackage;
 
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper

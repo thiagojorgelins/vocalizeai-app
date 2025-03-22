@@ -25,8 +25,6 @@ public class FileOperationsModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void deleteFile(String filePath, Promise promise) {
         try {
-            Log.d(TAG, "Attempting to delete file: " + filePath);
-            
             if (filePath.startsWith("file://")) {
                 filePath = filePath.substring(7);
             }
@@ -34,7 +32,6 @@ public class FileOperationsModule extends ReactContextBaseJavaModule {
             File file = new File(filePath);
             
             if (!file.exists()) {
-                Log.d(TAG, "File doesn't exist: " + filePath);
                 promise.resolve(false);
                 return;
             }
@@ -42,16 +39,12 @@ public class FileOperationsModule extends ReactContextBaseJavaModule {
             boolean deleted = file.delete();
             
             if (deleted) {
-                Log.d(TAG, "File deleted successfully: " + filePath);
                 promise.resolve(true);
             } else {
-                Log.d(TAG, "Regular delete failed, trying alternative approach");
-                
                 file.setWritable(true);
                 deleted = file.delete();
                 
                 if (deleted) {
-                    Log.d(TAG, "File deleted with alternative approach: " + filePath);
                     promise.resolve(true);
                 } else {
                     Log.e(TAG, "Failed to delete file: " + filePath);
@@ -76,11 +69,38 @@ public class FileOperationsModule extends ReactContextBaseJavaModule {
             dir.setWritable(true, false);
             
             String path = dir.getAbsolutePath();
-            Log.d(TAG, "App audio directory: " + path);
             promise.resolve("file://" + path);
         } catch (Exception e) {
             Log.e(TAG, "Error getting app audio directory: " + e.getMessage());
             promise.reject("DIR_ERROR", e.getMessage());
+        }
+    }
+
+    @ReactMethod
+    public void cleanAudioDirectory(Promise promise) {
+        try {
+            File audioDir = new File(reactContext.getFilesDir(), "audiorecordings");
+            if (audioDir.exists() && audioDir.isDirectory()) {
+                File[] files = audioDir.listFiles();
+                if (files != null) {
+                    int deletedCount = 0;
+                    
+                    for (File file : files) {
+                        if (file.delete()) {
+                            deletedCount++;
+                        }
+                    }
+                    
+                    promise.resolve(deletedCount);
+                } else {
+                    promise.resolve(0);
+                }
+            } else {
+                promise.resolve(0);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error cleaning audio directory: " + e.getMessage(), e);
+            promise.reject("CLEAN_DIR_ERROR", e.getMessage());
         }
     }
 }

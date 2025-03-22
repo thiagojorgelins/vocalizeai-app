@@ -5,6 +5,7 @@ import { uploadAudioFile } from "@/services/audioService";
 import { getVocalizacoes } from "@/services/vocalizacoesService";
 import { AudioRecording } from "@/types/AudioRecording";
 import { Vocalizacao } from "@/types/Vocalizacao";
+import FileOperations from "@/utils/FileOperations";
 import translateVocalization from "@/utils/TranslateVocalization";
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -20,10 +21,9 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { showMessage } from "react-native-flash-message";
-import FileOperations from '@/utils/FileOperations';
 
 export default function AudiosScreen() {
   const [recordings, setRecordings] = useState<AudioRecording[]>([]);
@@ -39,8 +39,13 @@ export default function AudiosScreen() {
     number | null
   >(null);
   const [sendingBatch, setSendingBatch] = useState(false);
-  const [showConfirmBatchSendModal, setShowConfirmBatchSendModal] = useState(false);
+  const [showConfirmBatchSendModal, setShowConfirmBatchSendModal] =
+    useState(false);
   const soundRef = useRef<Audio.Sound | null>(null);
+  const [sendingAudio, setSendingAudio] = useState(false);
+  const [showConfirmDeleteAllModal, setShowConfirmDeleteAllModal] =
+    useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -60,7 +65,7 @@ export default function AudiosScreen() {
           message: error instanceof Error ? error.message : "Erro",
           description: "Erro ao parar a reprodução de áudio",
           type: "danger",
-        })
+        });
       }
     }
   };
@@ -99,44 +104,93 @@ export default function AudiosScreen() {
       .padStart(2, "0")}`;
   };
 
+  async function handleDeleteAllAudios() {
+    if (recordings.length === 0) {
+      showMessage({
+        message: "Informação",
+        description: "Não há áudios para excluir",
+        type: "info",
+      });
+      setShowConfirmDeleteAllModal(false);
+      return;
+    }
+
+    setDeletingAll(true);
+    try {
+      await stopAudioPlayback();
+
+      try {
+        await FileOperations.cleanAudioDirectory();
+      } catch (error) {
+        showMessage({
+          message: "Erro",
+          description: "Erro ao limpar diretório de áudio",
+          type: "danger",
+        });
+      }
+
+      setRecordings([]);
+      await AsyncStorage.setItem("recordings", JSON.stringify([]));
+
+      setShowConfirmDeleteAllModal(false);
+
+      showMessage({
+        message: "Sucesso",
+        description: "Todos os áudios foram removidos com sucesso!",
+        type: "success",
+      });
+    } catch (error) {
+      showMessage({
+        message: error instanceof Error ? error.message : "Erro",
+        description: "Erro ao excluir todos os áudios",
+        type: "danger",
+      });
+    } finally {
+      setDeletingAll(false);
+    }
+  }
+
   async function handlePlayAudio(uri: string) {
     try {
       if (soundRef.current) {
         await soundRef.current.stopAsync();
         await soundRef.current.unloadAsync();
         soundRef.current = null;
-  
+
         if (playingUri === uri) {
           setPlayingUri(null);
           return;
         }
       }
-  
-      const properUri = uri.startsWith('file://') ? uri : `file://${uri}`;
-      
+
+      const properUri = uri.startsWith("file://") ? uri : `file://${uri}`;
+
       const fileInfo = await FileSystem.getInfoAsync(properUri);
 
       if (!fileInfo.exists) {
         throw new Error("Arquivo não existe");
       }
-      
+
       if (fileInfo.size === 0) {
         throw new Error("O arquivo está vazio ou corrompido");
       }
-      
+
       const soundObject = new Audio.Sound();
-      
+
       try {
-        await soundObject.loadAsync({ uri: properUri }, { progressUpdateIntervalMillis: 500 });
-        
-        soundObject.setOnPlaybackStatusUpdate((status) => {          
+        await soundObject.loadAsync(
+          { uri: properUri },
+          { progressUpdateIntervalMillis: 500 }
+        );
+
+        soundObject.setOnPlaybackStatusUpdate((status) => {
           if (status.isLoaded && status.didJustFinish) {
             setPlayingUri(null);
             soundObject.unloadAsync();
             soundRef.current = null;
           }
-          
-          if (!status.isLoaded && 'error' in status) {
+
+          if (!status.isLoaded && "error" in status) {
             setPlayingUri(null);
             soundObject.unloadAsync();
             soundRef.current = null;
@@ -147,25 +201,25 @@ export default function AudiosScreen() {
             });
           }
         });
-        
+
         await soundObject.playAsync();
-        
+
         soundRef.current = soundObject;
         setPlayingUri(uri);
-        
       } catch (error) {
         showMessage({
           message: "Error",
           description: "Erro carregando som",
           type: "danger",
-        })
+        });
         if (error instanceof Error) {
           throw new Error(`Não foi possível carregar áudio: ${error.message}`);
         } else {
-          throw new Error("Não foi possível carregar áudio: ocorreu um erro desconhecido");
+          throw new Error(
+            "Não foi possível carregar áudio: ocorreu um erro desconhecido"
+          );
         }
       }
-      
     } catch (error) {
       setPlayingUri(null);
       showMessage({
@@ -181,27 +235,113 @@ export default function AudiosScreen() {
       if (playingUri === recording.uri) {
         await stopAudioPlayback();
       }
-  
-      const deleted = await FileOperations.deleteFile(recording.uri);
-      
-      if (!deleted) {
-        throw new Error("Erro ao excluir arquivo de áudio");
+
+      const uriTimestamp = recording.uri.match(/recording_(\d+)/);
+      const timestampInFilename = uriTimestamp ? uriTimestamp[1] : null;
+
+      let deleted = false;
+
+      try {
+        const audioDir = await FileOperations.getAudioDirectory();
+
+        if (Platform.OS === "android") {
+          try {
+            let matchingFile = null;
+
+            if (timestampInFilename) {
+              const pattern = new RegExp(
+                `recording_${timestampInFilename.substring(0, 8)}`
+              );
+
+              const dirInfo = await FileSystem.getInfoAsync(audioDir);
+
+              if (dirInfo.exists && dirInfo.isDirectory) {
+                const files = await FileSystem.readDirectoryAsync(audioDir);
+
+                for (const file of files) {
+                  if (pattern.test(file)) {
+                    matchingFile = file;
+                    break;
+                  }
+                }
+              }
+            }
+
+            if (matchingFile) {
+              const filePath = `${audioDir}/${matchingFile}`;
+
+              try {
+                deleted = await FileOperations.deleteFile(filePath);
+
+                if (!deleted) {
+                  await FileSystem.deleteAsync(filePath, { idempotent: true });
+                  deleted = true;
+                }
+              } catch (fileError) {
+                showMessage({
+                  message: "Erro",
+                  description: "Erro ao excluir arquivo específico",
+                  type: "danger",
+                });
+              }
+            } else {
+              showMessage({
+                message: "Erro",
+                description: "Não foi possível encontrar o arquivo de áudio",
+                type: "danger",
+              });
+            }
+          } catch (error) {
+            showMessage({
+              message: error instanceof Error ? error.message : "Erro",
+              description: "Erro ao excluir o arquivo de áudio",
+              type: "danger",
+            });
+          }
+        } else {
+          try {
+            await FileSystem.deleteAsync(recording.uri, { idempotent: true });
+            deleted = true;
+          } catch (error) {
+            showMessage({
+              message: error instanceof Error ? error.message : "Erro",
+              description: "Erro ao excluir o arquivo de áudio",
+              type: "danger",
+            });
+          }
+        }
+      } catch (error) {
+        showMessage({
+          message: error instanceof Error ? error.message : "Erro",
+          description: "Erro ao excluir o arquivo de áudio",
+          type: "danger",
+        });
       }
-  
+
       const updated = recordings.filter(
         (item) => item.timestamp !== recording.timestamp
       );
+
       setRecordings(updated);
       await AsyncStorage.setItem("recordings", JSON.stringify(updated));
       setShowOptionsModal(false);
       setShowConfirmDeleteModal(false);
       setSelectedRecording(null);
-      
-      showMessage({
-        message: "Sucesso",
-        description: "Áudio excluído com sucesso!",
-        type: "success",
-      });
+
+      if (deleted) {
+        showMessage({
+          message: "Sucesso",
+          description: "Áudio excluído com sucesso!",
+          type: "success",
+        });
+      } else {
+        showMessage({
+          message: "Atenção",
+          description:
+            "O áudio foi removido da lista, mas pode haver arquivos residuais no dispositivo.",
+          type: "info",
+        });
+      }
     } catch (error) {
       showMessage({
         message: error instanceof Error ? error.message : "Erro",
@@ -267,6 +407,7 @@ export default function AudiosScreen() {
   }
 
   async function handleUpload(idVocalizacao: number, fileUri: string) {
+    setSendingAudio(true);
     try {
       await uploadAudioFile(idVocalizacao, fileUri);
 
@@ -295,6 +436,8 @@ export default function AudiosScreen() {
         description: "Erro ao enviar áudio",
         type: "danger",
       });
+    } finally {
+      setSendingAudio(false);
     }
   }
 
@@ -324,36 +467,39 @@ export default function AudiosScreen() {
 
     setSendingBatch(true);
     setShowConfirmBatchSendModal(false);
-    
+
     let successCount = 0;
     let errorCount = 0;
     let updatedRecordingsList = [...recordings];
-    
+
     try {
       for (const recording of pendingRecordings) {
         try {
           await uploadAudioFile(recording.vocalizationId, recording.uri);
           successCount++;
-          
+
           updatedRecordingsList = updatedRecordingsList.map((rec) => {
             if (rec.timestamp === recording.timestamp) {
               return { ...rec, status: "sent" };
             }
             return rec;
           });
-          
+
           setRecordings(updatedRecordingsList);
-          await AsyncStorage.setItem("recordings", JSON.stringify(updatedRecordingsList));
+          await AsyncStorage.setItem(
+            "recordings",
+            JSON.stringify(updatedRecordingsList)
+          );
         } catch (error) {
           showMessage({
             message: "Erro",
             description: `Erro ao enviar áudio ${recording.uri}`,
             type: "danger",
-          })
+          });
           errorCount++;
         }
       }
-      
+
       if (successCount > 0 && errorCount === 0) {
         showMessage({
           message: "Sucesso",
@@ -385,7 +531,7 @@ export default function AudiosScreen() {
   }
 
   const getPendingCount = () => {
-    return recordings.filter(recording => recording.status !== "sent").length;
+    return recordings.filter((recording) => recording.status !== "sent").length;
   };
 
   const renderRecording = ({ item }: { item: AudioRecording }) => {
@@ -468,7 +614,20 @@ export default function AudiosScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Áudios Gravados</Text>
+      <View style={styles.titleContainer}>
+        <Text style={styles.title}>Áudios Gravados</Text>
+        <TouchableOpacity
+          onPress={() => setShowConfirmDeleteAllModal(true)}
+          style={styles.deleteAllButton}
+          disabled={recordings.length === 0 || deletingAll}
+        >
+          <MaterialIcons
+            name="delete"
+            size={24}
+            color={recordings.length === 0 ? "#ccc" : "#F44336"}
+          />
+        </TouchableOpacity>
+      </View>
 
       <ButtonCustom
         title={`Enviar Todos os Áudios (${getPendingCount()})`}
@@ -521,12 +680,28 @@ export default function AudiosScreen() {
         }
         message="Tem certeza que deseja excluir a gravação?"
       />
-      
+
       <ConfirmationModal
         visible={showConfirmBatchSendModal}
         onCancel={() => setShowConfirmBatchSendModal(false)}
         onConfirm={handleBatchUpload}
         message={`Deseja enviar os ${getPendingCount()} áudios pendentes?`}
+      />
+
+      <ConfirmationModal
+        visible={showConfirmDeleteAllModal}
+        onCancel={() => setShowConfirmDeleteAllModal(false)}
+        onConfirm={() => handleDeleteAllAudios()}
+        message="Tem certeza que deseja excluir TODOS os áudios? Esta ação não pode ser desfeita."
+        confirmText={deletingAll ? "Excluindo..." : "Excluir Todos"}
+        confirmDisabled={deletingAll}
+        confirmIcon={
+          deletingAll ? (
+            <ActivityIndicator size="small" color="#FFF" />
+          ) : (
+            <MaterialIcons name="delete-forever" size={20} color="#FFF" />
+          )
+        }
       />
 
       <Modal
@@ -627,7 +802,7 @@ export default function AudiosScreen() {
               />
 
               <ButtonCustom
-                title="Enviar Áudio"
+                title={sendingAudio ? "Enviando..." : "Enviar Áudio"}
                 onPress={() =>
                   selectedRecording &&
                   handleUpload(
@@ -638,9 +813,13 @@ export default function AudiosScreen() {
                 color="#4CAF50"
                 style={styles.actionButton}
                 icon={
-                  <MaterialIcons name="cloud-upload" size={20} color="#FFF" />
+                  sendingAudio ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <MaterialIcons name="cloud-upload" size={20} color="#FFF" />
+                  )
                 }
-                disabled={selectedRecording?.status === "sent"}
+                disabled={selectedRecording?.status === "sent" || sendingAudio}
               />
 
               <ButtonCustom
@@ -667,7 +846,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: "bold",
-    marginBottom: 16,
     color: "#2C3E50",
   },
   batchUploadButton: {
@@ -694,17 +872,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 10,
     marginBottom: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    elevation: 2
   },
   legendItem: {
     flexDirection: "row",
@@ -734,17 +902,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     alignItems: "center",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    elevation: 2,
   },
   pendingRecording: {
     backgroundColor: "#FFFFFF",
@@ -863,5 +1021,15 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     marginVertical: 0,
+  },
+  titleContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  deleteAllButton: {
+    padding: 8,
+    borderRadius: 20,
   },
 });
