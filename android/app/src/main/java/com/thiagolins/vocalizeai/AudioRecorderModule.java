@@ -39,15 +39,12 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
       @Override
       public void onReceive(Context context, Intent intent) {
           String action = intent.getAction();
-          Log.d(TAG, "Broadcast recebido: " + action);
           
           if ("com.thiagolins.vocalizeai.OUTPUT_FILE_SET".equals(action)) {
             String outputFile = intent.getStringExtra("outputFile");
             if (outputFile != null) {
                 currentOutputFile = outputFile;
-                Log.d(TAG, "Arquivo de saída definido: " + outputFile);
                 
-                // Notificar o JS sobre o novo arquivo definido
                 WritableMap params = Arguments.createMap();
                 params.putString("outputFile", "file://" + outputFile);
                 params.putBoolean("isRecording", isRecording);
@@ -70,7 +67,6 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
               params.putDouble("currentTime", currentRecordingTime);
               
               sendEvent("onRecordingStatusChange", params);
-              Log.d(TAG, "Status de gravação atualizado: isRecording=" + isRecording + ", isPaused=" + isPaused);
           } else if ("com.thiagolins.vocalizeai.RECORDING_TIME_UPDATE".equals(action)) {
               currentRecordingTime = intent.getLongExtra("currentTime", 0);
       
@@ -78,7 +74,6 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
               if (updatedOutputFile != null && !updatedOutputFile.isEmpty()) {
                   if (currentOutputFile == null || !currentOutputFile.equals(updatedOutputFile)) {
                       currentOutputFile = updatedOutputFile;
-                      Log.d(TAG, "Arquivo de saída atualizado via time update: " + updatedOutputFile);
                   }
               }
               
@@ -94,21 +89,13 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
               String outputFile = intent.getStringExtra("outputFile");
               long duration = intent.getLongExtra("duration", 0);
               
-              Log.d(TAG, "Gravação concluída: arquivo=" + outputFile + ", duração=" + duration);
-              
-              // Verificar se o arquivo existe e é acessível
               if (outputFile != null) {
                   File file = new File(outputFile);
                   if (file.exists() && file.length() > 0) {
-                      Log.d(TAG, "Arquivo existe com tamanho: " + file.length() + " bytes");
-                      
-                      // Garantir que o arquivo tem permissões de leitura
                       if (!file.canRead()) {
-                          boolean success = file.setReadable(true, false);
-                          Log.d(TAG, "Definindo arquivo como legível: " + success);
+                          file.setReadable(true, false);
                       }
                       
-                      // Adicionar prefixo file:// para compatibilidade com React Native
                       String fileUrl = "file://" + outputFile;
                       
                       WritableMap params = Arguments.createMap();
@@ -119,7 +106,7 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
                       
                       isRecording = false;
                       isPaused = false;
-                      currentOutputFile = outputFile; // Manter para que o cliente possa acessar o arquivo
+                      currentOutputFile = outputFile;
                   } else {
                       Log.e(TAG, "Arquivo não existe ou está vazio: " + outputFile);
                       
@@ -141,19 +128,26 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
   };
 
     public AudioRecorderModule(ReactApplicationContext reactContext) {
-        super(reactContext);
-        this.reactContext = reactContext;
-        this.reactContext.addLifecycleEventListener(this);
-        
-        Log.d(TAG, "Módulo criado");
-        
-        IntentFilter filter = new IntentFilter();
-        filter.addAction("com.thiagolins.vocalizeai.RECORDING_STATUS");
-        filter.addAction("com.thiagolins.vocalizeai.RECORDING_TIME_UPDATE");
-        filter.addAction("com.thiagolins.vocalizeai.RECORDING_COMPLETED");
-        filter.addAction("com.thiagolins.vocalizeai.OUTPUT_FILE_SET");
+      super(reactContext);
+      this.reactContext = reactContext;
+      this.reactContext.addLifecycleEventListener(this);
+      
+      IntentFilter filter = new IntentFilter();
+      filter.addAction("com.thiagolins.vocalizeai.RECORDING_STATUS");
+      filter.addAction("com.thiagolins.vocalizeai.RECORDING_TIME_UPDATE");
+      filter.addAction("com.thiagolins.vocalizeai.RECORDING_COMPLETED");
+      filter.addAction("com.thiagolins.vocalizeai.OUTPUT_FILE_SET");
+      filter.addAction("com.thiagolins.vocalizeai.RECORDING_ERROR");
 
-        reactContext.registerReceiver(recordingStatusReceiver, filter);
+      try {
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+              this.reactContext.registerReceiver(recordingStatusReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+          } else {
+              this.reactContext.registerReceiver(recordingStatusReceiver, filter);
+          }
+      } catch (Exception e) {
+          Log.e(TAG, "Erro ao registrar receptor de broadcast: " + e.getMessage(), e);
+      }
     }
 
     @Override
@@ -162,56 +156,56 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
     }
     
     private void sendEvent(String eventName, WritableMap params) {
-        try {
-            reactContext
-                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
-                .emit(eventName, params);
-            Log.d(TAG, "Evento enviado: " + eventName);
-        } catch (Exception e) {
-            Log.e(TAG, "Erro ao enviar evento: " + e.getMessage());
-        }
+      try {
+          if (reactContext.hasActiveReactInstance()) {
+              reactContext
+                  .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+                  .emit(eventName, params);
+          } else {
+              new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                  if (reactContext.hasActiveReactInstance()) {
+                      try {
+                          reactContext
+                              .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+                              .emit(eventName, params);
+                      } catch (Exception retryEx) {
+                          Log.e(TAG, "Falha na nova tentativa de enviar evento: " + retryEx.getMessage());
+                      }
+                  }
+              }, 500);
+          }
+      } catch (Exception e) {
+          Log.e(TAG, "Erro ao enviar evento " + eventName + ": " + e.getMessage(), e);
+      }
     }
     
     @ReactMethod
     public void addListener(String eventName) {
-        Log.d(TAG, "Listener adicionado: " + eventName);
     }
 
     @ReactMethod
     public void removeListeners(Integer count) {
-        Log.d(TAG, "Listeners removidos: " + count);
     }
 
     @ReactMethod
     public void forceStopService(Promise promise) {
         try {
-            Log.d(TAG, "forceStopService chamado - Encerrando serviço forçadamente");
-            
             Intent serviceIntent = new Intent(reactContext, ForegroundAudioRecorderService.class);
             reactContext.stopService(serviceIntent);
-            
             NotificationManager notificationManager = 
                 (NotificationManager) reactContext.getSystemService(Context.NOTIFICATION_SERVICE);
             notificationManager.cancel(ForegroundAudioRecorderService.NOTIFICATION_ID);
-            
-            isRecording = false;
-            isPaused = false;
-            currentRecordingTime = 0;
-            
             WritableMap params = Arguments.createMap();
             params.putBoolean("isRecording", false);
             params.putBoolean("isPaused", false);
             params.putDouble("currentTime", 0);
             params.putString("outputFile", null); 
-            
             sendEvent("onRecordingStatusChange", params);
-            
             WritableMap result = Arguments.createMap();
             result.putBoolean("success", true);
             promise.resolve(result);
         } catch (Exception e) {
             Log.e(TAG, "Erro ao forçar parada do serviço: " + e.getMessage());
-            e.printStackTrace();
             promise.reject("FORCE_STOP_ERROR", e.getMessage());
         }
     }
@@ -219,8 +213,6 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
     @ReactMethod
     public void startRecording(double elapsedTimeBeforePause, Promise promise) {
         try {
-            Log.d(TAG, "startRecording chamado com tempo decorrido: " + elapsedTimeBeforePause);
-            
             if (ContextCompat.checkSelfPermission(reactContext, Manifest.permission.RECORD_AUDIO) 
                     != PackageManager.PERMISSION_GRANTED) {
                 Log.e(TAG, "Permissão para gravar áudio não concedida");
@@ -234,10 +226,8 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 reactContext.startForegroundService(serviceIntent);
-                Log.d(TAG, "startForegroundService chamado");
             } else {
                 reactContext.startService(serviceIntent);
-                Log.d(TAG, "startService chamado");
             }
             
             isRecording = true;
@@ -248,7 +238,6 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
             promise.resolve(result);
         } catch (Exception e) {
             Log.e(TAG, "Erro ao iniciar gravação: " + e.getMessage());
-            e.printStackTrace();
             promise.reject("START_RECORDING_ERROR", e.getMessage());
         }
     }
@@ -256,9 +245,7 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
     @ReactMethod
     public void pauseRecording(Promise promise) {
         try {
-            Log.d(TAG, "pauseRecording chamado");
             if (!isRecording || isPaused) {
-                Log.w(TAG, "Não há gravação ativa para pausar");
                 promise.reject("INVALID_STATE", "Não há gravação ativa para pausar");
                 return;
             }
@@ -274,7 +261,6 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
             promise.resolve(result);
         } catch (Exception e) {
             Log.e(TAG, "Erro ao pausar gravação: " + e.getMessage());
-            e.printStackTrace();
             promise.reject("PAUSE_RECORDING_ERROR", e.getMessage());
         }
     }
@@ -282,9 +268,7 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
     @ReactMethod
     public void resumeRecording(Promise promise) {
         try {
-            Log.d(TAG, "resumeRecording chamado");
             if (!isRecording || !isPaused) {
-                Log.w(TAG, "Não há gravação pausada para retomar");
                 promise.reject("INVALID_STATE", "Não há gravação pausada para retomar");
                 return;
             }
@@ -300,7 +284,6 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
             promise.resolve(result);
         } catch (Exception e) {
             Log.e(TAG, "Erro ao retomar gravação: " + e.getMessage());
-            e.printStackTrace();
             promise.reject("RESUME_RECORDING_ERROR", e.getMessage());
         }
     }
@@ -308,9 +291,7 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
     @ReactMethod
     public void stopRecording(Promise promise) {
         try {
-            Log.d(TAG, "stopRecording chamado");
             if (!isRecording) {
-                Log.w(TAG, "Não há gravação ativa para parar");
                 promise.reject("INVALID_STATE", "Não há gravação ativa para parar");
                 return;
             }
@@ -324,7 +305,6 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
             promise.resolve(result);
         } catch (Exception e) {
             Log.e(TAG, "Erro ao parar gravação: " + e.getMessage());
-            e.printStackTrace();
             promise.reject("STOP_RECORDING_ERROR", e.getMessage());
         }
     }
@@ -332,9 +312,6 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
     @ReactMethod
     public void getStatus(Promise promise) {
         try {
-            Log.d(TAG, "getStatus chamado: isRecording=" + isRecording + ", isPaused=" + isPaused + 
-                     ", file=" + currentOutputFile + ", time=" + currentRecordingTime);
-            
             WritableMap status = Arguments.createMap();
             status.putBoolean("isRecording", isRecording);
             status.putBoolean("isPaused", isPaused);
@@ -356,20 +333,16 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
 
     @Override
     public void onHostResume() {
-        Log.d(TAG, "onHostResume");
     }
 
     @Override
     public void onHostPause() {
-        Log.d(TAG, "onHostPause");
     }
 
     @Override
     public void onHostDestroy() {
-        Log.d(TAG, "onHostDestroy");
         try {
             reactContext.unregisterReceiver(recordingStatusReceiver);
-            Log.d(TAG, "Receptor desregistrado");
         } catch (Exception e) {
             Log.e(TAG, "Erro ao desregistrar receptor: " + e.getMessage());
         }
@@ -378,8 +351,6 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
     @ReactMethod
     public void getOutputFilePath(Promise promise) {
         try {
-            Log.d(TAG, "getOutputFilePath called");
-            
             if (currentOutputFile != null) {
                 File file = new File(currentOutputFile);
                 if (file.exists() && file.length() > 0) {
@@ -389,14 +360,11 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
                         ? currentOutputFile 
                         : "file://" + currentOutputFile;
                     
-                    Log.d(TAG, "Returning file path: " + fileUrl);
                     promise.resolve(fileUrl);
                 } else {
-                    Log.e(TAG, "File doesn't exist or is empty: " + currentOutputFile);
                     promise.resolve(null);
                 }
             } else {
-                Log.d(TAG, "No output file available");
                 promise.resolve(null);
             }
         } catch (Exception e) {
