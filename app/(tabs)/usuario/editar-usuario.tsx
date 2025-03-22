@@ -282,7 +282,7 @@ export default function EditarUsuarioScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={"height"}
       style={styles.container}
     >
       {isLoading && (
@@ -457,17 +457,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   section: {
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    elevation: 4,
     gap: 16,
     marginBottom: 24,
   },

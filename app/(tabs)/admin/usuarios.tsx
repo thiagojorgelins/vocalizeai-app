@@ -395,17 +395,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     padding: 24,
     gap: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    elevation: 4,
   },
   modalHeader: {
     flexDirection: "row",

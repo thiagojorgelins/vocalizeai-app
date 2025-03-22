@@ -101,7 +101,7 @@ export default function CadastroParticipanteScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={"height"}
       style={styles.container}
     >
       <ScrollView
@@ -343,17 +343,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderColor: "#E0E0E0",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    elevation: 2,
   },
   title: {
     fontSize: 24,
@@ -366,17 +356,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     margin: 16,
     padding: 20,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    elevation: 3
   },
   section: {
     marginBottom: 24,
@@ -428,17 +408,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     backgroundColor: "#F5F5F5",
     borderRadius: 24,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-      },
-      android: {
-        elevation: 1,
-      },
-    }),
+    elevation: 1,
   },
   modalOverlay: {
     flex: 1,
@@ -450,18 +420,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF",
     borderRadius: 16,
     padding: 20,
-    maxHeight: "80%",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 5,
-      },
-    }),
+    maxHeight: "80%",        
+    elevation: 5,
   },
   modalHeader: {
     flexDirection: "row",

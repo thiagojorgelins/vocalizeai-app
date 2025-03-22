@@ -92,7 +92,7 @@ export default function ChangePasswordScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={"height"}
       style={styles.container}
     >
       <ScrollView
@@ -193,17 +193,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     margin: 16,
     padding: 20,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    elevation: 3
   },
   section: {
     marginBottom: 24,

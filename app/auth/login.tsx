@@ -109,7 +109,7 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={"height"}
       style={styles.container}
     >
       <ScrollView
