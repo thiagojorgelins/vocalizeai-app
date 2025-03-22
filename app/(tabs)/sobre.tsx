@@ -1,10 +1,8 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
-import React, { useState } from "react";
+import React from "react";
 import {
-  Dimensions,
   Linking,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,15 +10,10 @@ import {
   View,
 } from "react-native";
 import { showMessage } from "react-native-flash-message";
-import { WebView } from "react-native-webview";
+
+import JustifiedText from "@/components/JustifiedText";
 
 export default function SobreScreen() {
-  const screenWidth = Dimensions.get("window").width;
-  const cardWidth = screenWidth - 40;
-  const webViewWidth = cardWidth - 40; 
-
-  const [webViewHeights, setWebViewHeights] = useState<{ [key: string]: number }>({});
-
   const vocalizationLabels = [
     {
       title: "Frustration(Frustração)",
@@ -72,101 +65,25 @@ export default function SobreScreen() {
     }
   };
 
-  const injectedJavaScript = `
-    (function() {
-      // Envia a altura apenas uma vez quando o conteúdo estiver carregado
-      const height = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
-      window.ReactNativeWebView.postMessage(JSON.stringify({height: height}));
-      document.body.style.height = 'auto';
-      
-      true;
-    })();
-  `;
+  const renderJustifiedText = (text: string, testID: string) => {
+    const paragraphs = text.split("\n\n");
 
-  const createJustifiedHtml = (text: string, id: string) => {
-    return `
-      <html>
-        <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-          <style>
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-              margin: 0;
-              padding: 0;
-              color: #424242;
-              font-size: 16px;
-              line-height: 1.5;
-              background-color: transparent;
-              width: ${webViewWidth}px;
-              overflow-x: hidden;
-            }
-            p {
-              text-align: justify;
-              margin: 0 0 12px 0;
-              padding: 0;
-            }
-            p:last-child {
-              margin-bottom: 0;
-            }
-          </style>
-        </head>
-        <body id="${id}">
-          ${text
-            .split("\n\n")
-            .map((paragraph) => `<p>${paragraph}</p>`)
-            .join("")}
-        </body>
-      </html>
-    `;
-  };
-
-  const renderJustifiedWebView = (text: string, id: string) => {
-    const baseHeight = 50;
-
-    return (
-      <WebView
-        key={id}
-        originWhitelist={["*"]}
-        source={{ html: createJustifiedHtml(text, id) }}
-        style={{
-          height: webViewHeights[id] || baseHeight,
-          width: webViewWidth,
-          backgroundColor: "transparent",
-          opacity: webViewHeights[id] ? 1 : 0,
-        }}
-        scrollEnabled={false}
-        showsVerticalScrollIndicator={false}
-        showsHorizontalScrollIndicator={false}
-        injectedJavaScript={injectedJavaScript}
-        onMessage={(event) => {
-          try {
-            const data = JSON.parse(event.nativeEvent.data);
-            if (data.height && (!webViewHeights[id] || data.height > webViewHeights[id])) {
-              setWebViewHeights((prev) => ({
-                ...prev,
-                [id]: Math.ceil(data.height) + 5,
-              }));
-            }
-          } catch (error) {
-            showMessage({
-              message: "Erro ao processar mensagem do WebView",
-              type: "danger",
-            })
-          }
-        }}
-        javaScriptEnabled={true}
-        domStorageEnabled={true}
-        cacheEnabled={true}
-        cacheMode="LOAD_CACHE_ELSE_NETWORK"
-      />
-    );
+    return paragraphs.map((paragraph, index) => (
+      <JustifiedText
+        key={`${testID}-paragraph-${index}`}
+        testID={`${testID}-${index}`}
+        style={index === paragraphs.length - 1 ? styles.lastParagraph : null}
+      >
+        {paragraph}
+      </JustifiedText>
+    ));
   };
 
   const renderCard = (
     title: string,
     content: string | React.ReactNode,
     showShareButton = true,
-    id: string = ""
+    testID: string = ""
   ) => (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
@@ -175,6 +92,7 @@ export default function SobreScreen() {
           <TouchableOpacity
             onPress={() => handleCopy(content, title)}
             style={styles.shareButton}
+            testID={`copy-${testID}`}
           >
             <MaterialIcons name="content-copy" size={20} color="#2196F3" />
           </TouchableOpacity>
@@ -182,11 +100,7 @@ export default function SobreScreen() {
       </View>
 
       {typeof content === "string"
-        ?
-          renderJustifiedWebView(
-            content,
-            id || `webview-${Math.random().toString(36).substring(7)}`
-          )
+        ? renderJustifiedText(content, testID)
         : content}
     </View>
   );
@@ -230,7 +144,7 @@ Através do uso de técnicas de aprendizado de máquina, buscamos classificar vo
           {renderCard(
             "Banco de Dados ReCANVo",
             <>
-              {renderJustifiedWebView(
+              {renderJustifiedText(
                 "O ReCANVo (Real-World Communicative and Affective Nonverbal Vocalizations) é um banco de dados inovador que contém mais de 7.000 vocalizações de indivíduos minimamente verbais, categorizadas por função comunicativa. As vocalizações foram gravadas em ambientes reais e rotuladas em tempo real por familiares próximos que conheciam bem o comunicador.",
                 "recanvo-desc"
               )}
@@ -251,12 +165,12 @@ Através do uso de técnicas de aprendizado de máquina, buscamos classificar vo
           {renderCard(
             "Projeto Commalla",
             <>
-              {renderJustifiedWebView(
+              {renderJustifiedText(
                 "O Commalla (Communication for all) é um projeto de pesquisa dedicado a encontrar formas inteligentes de usar tecnologia para um futuro melhor para todos. O projeto foca em mais de 1 milhão de pessoas nos EUA que são não-verbais ou minimamente verbais, incluindo pessoas com autismo, síndrome de Down e outros transtornos.",
                 "commalla-desc-1"
               )}
               <View style={{ height: 16 }} />
-              {renderJustifiedWebView(
+              {renderJustifiedText(
                 "O projeto desenvolve modelos personalizados para classificar vocalizações usando rótulos em tempo real de cuidadores através do aplicativo Commalla, com métodos escaláveis para coleta e rotulagem de dados naturalísticos.",
                 "commalla-desc-2"
               )}
@@ -305,20 +219,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 20,
     marginBottom: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: {
-          width: 0,
-          height: 2,
-        },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    elevation: 3,
   },
   cardHeader: {
     flexDirection: "row",
@@ -337,13 +238,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: "rgba(33, 150, 243, 0.1)",
   },
-  text: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: "#424242",
-  },
-  marginTop: {
-    marginTop: 16,
+  lastParagraph: {
+    marginBottom: 0,
   },
   linkContainer: {
     flexDirection: "row",
