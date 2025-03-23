@@ -42,6 +42,12 @@ class AudioRecorderService {
         this._handleRecordingError.bind(this)
       );
 
+      this._syncTimer = setInterval(() => {
+        if (this._isRecording) {
+          this.forceSync();
+        }
+      }, 1000);
+
       this._syncStatus();
     }
   }
@@ -75,7 +81,8 @@ class AudioRecorderService {
       throw error;
     }
   }
-  
+
+
   async checkOutputFile() {
     if (!this._outputFile) {
       console.error('Não há arquivo de saída para verificar');
@@ -100,35 +107,75 @@ class AudioRecorderService {
     }
   }
 
-async resetState() {
-  if (!BackgroundAudioRecorder) {
-    console.warn('Módulo nativo BackgroundAudioRecorder não disponível para resetState');
-    return false;
+  async forceSync() {
+    if (!BackgroundAudioRecorder) {
+      console.error('Módulo nativo BackgroundAudioRecorder não disponível');
+      return false;
+    }
+
+    try {
+      const status = await BackgroundAudioRecorder.getStatus();
+
+      if (status.isRecording !== this._isRecording ||
+        status.isPaused !== this._isPaused) {
+
+        this._isRecording = status.isRecording;
+        this._isPaused = status.isPaused;
+        this._recordingTime = status.currentTime;
+        this._outputFile = status.outputFile;
+
+        this._statusChangeListeners.forEach(listener => {
+          try {
+            listener({
+              isRecording: this._isRecording,
+              isPaused: this._isPaused,
+              currentTime: this._recordingTime,
+              outputFile: this._outputFile
+            });
+          } catch (error) {
+            console.error('Erro no listener durante forceSync:', error);
+          }
+        });
+
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error('Erro ao forçar sincronização:', error);
+      return false;
+    }
   }
 
-  try {
-    await BackgroundAudioRecorder.forceStopService();
-    
-    this._isRecording = false;
-    this._isPaused = false;
-    this._recordingTime = 0;
-    this._outputFile = null;
-    
-    this._statusChangeListeners.forEach(listener => {
-      listener({
-        isRecording: false,
-        isPaused: false,
-        currentTime: 0,
-        outputFile: null
+  async resetState() {
+    if (!BackgroundAudioRecorder) {
+      console.warn('Módulo nativo BackgroundAudioRecorder não disponível para resetState');
+      return false;
+    }
+
+    try {
+      await BackgroundAudioRecorder.forceStopService();
+
+      this._isRecording = false;
+      this._isPaused = false;
+      this._recordingTime = 0;
+      this._outputFile = null;
+
+      this._statusChangeListeners.forEach(listener => {
+        listener({
+          isRecording: false,
+          isPaused: false,
+          currentTime: 0,
+          outputFile: null
+        });
       });
-    });
-    
-    return true;
-  } catch (error) {
-    console.error('Erro ao resetar estado:', error);
-    return false;
+
+      return true;
+    } catch (error) {
+      console.error('Erro ao resetar estado:', error);
+      return false;
+    }
   }
-}
 
   async verifyRecording() {
     if (!this._outputFile) {
@@ -177,15 +224,36 @@ async resetState() {
 
   async forceStopService() {
     if (!BackgroundAudioRecorder) {
-      throw new Error('Módulo nativo BackgroundAudioRecorder não disponível');
+      throw new Error('Native BackgroundAudioRecorder module not available');
     }
 
     try {
+      const outputFileCopy = this._outputFile;
+
       await BackgroundAudioRecorder.forceStopService();
-      this.resetState();
+
+      this._isRecording = false;
+      this._isPaused = false;
+      this._recordingTime = 0;
+      this._outputFile = null;
+
+      this._statusChangeListeners.forEach(listener => {
+        try {
+          listener({
+            isRecording: false,
+            isPaused: false,
+            currentTime: 0,
+            outputFile: null,
+            previousOutputFile: outputFileCopy
+          });
+        } catch (error) {
+          console.error('Error in listener after forceStopService:', error);
+        }
+      });
+
       return true;
     } catch (error) {
-      console.error('Erro ao forçar parada do serviço:', error);
+      console.error('Error forcing service stop:', error);
       throw error;
     }
   }
@@ -204,20 +272,99 @@ async resetState() {
     }
   }
 
+  async syncStatusFromService() {
+    if (!BackgroundAudioRecorder) return;
+
+    try {
+      const nativeStatus = await BackgroundAudioRecorder.getStatus();
+
+      if (nativeStatus.isRecording !== this._isRecording ||
+        nativeStatus.isPaused !== this._isPaused) {
+
+        this._isRecording = nativeStatus.isRecording;
+        this._isPaused = nativeStatus.isPaused;
+        this._recordingTime = nativeStatus.currentTime;
+        this._outputFile = nativeStatus.outputFile;
+
+        this._statusChangeListeners.forEach(listener => {
+          listener({
+            isRecording: this._isRecording,
+            isPaused: this._isPaused,
+            currentTime: this._recordingTime,
+            outputFile: this._outputFile
+          });
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao sincronizar status:', error);
+    }
+  }
+  async forceSync() {
+    if (!BackgroundAudioRecorder) {
+      console.error('Native BackgroundAudioRecorder module not available');
+      return false;
+    }
+
+    try {
+      const status = await BackgroundAudioRecorder.getStatus();
+
+      this._isRecording = status.isRecording;
+      this._isPaused = status.isPaused;
+      this._recordingTime = status.currentTime || this._recordingTime;
+
+      if (status.outputFile) {
+        this._outputFile = status.outputFile;
+      }
+
+      this._statusChangeListeners.forEach(listener => {
+        try {
+          listener({
+            isRecording: this._isRecording,
+            isPaused: this._isPaused,
+            currentTime: this._recordingTime,
+            outputFile: this._outputFile,
+            forceUpdate: true
+          });
+        } catch (error) {
+          console.error('Error in listener during forceSync:', error);
+        }
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error forcing sync:', error);
+      return false;
+    }
+  }
   _handleRecordingStatusChange(status) {
+    const stateChanged = this._isRecording !== status.isRecording ||
+      this._isPaused !== status.isPaused;
+
     this._isRecording = status.isRecording;
     this._isPaused = status.isPaused;
-    this._recordingTime = status.currentTime;
-    this._outputFile = status.outputFile;
 
-    this._statusChangeListeners.forEach(listener => {
-      listener({
-        isRecording: this._isRecording,
-        isPaused: this._isPaused,
-        currentTime: this._recordingTime,
-        outputFile: this._outputFile
+    if (status.currentTime !== undefined && status.currentTime !== null) {
+      this._recordingTime = status.currentTime;
+    }
+
+    if (status.outputFile) {
+      this._outputFile = status.outputFile;
+    }
+
+    if (stateChanged || status.forceUpdate) {
+      this._statusChangeListeners.forEach(listener => {
+        try {
+          listener({
+            isRecording: this._isRecording,
+            isPaused: this._isPaused,
+            currentTime: this._recordingTime,
+            outputFile: this._outputFile
+          });
+        } catch (error) {
+          console.error('Error in status change listener:', error);
+        }
       });
-    });
+    }
   }
 
   _handleRecordingTimeUpdate(update) {
@@ -252,13 +399,13 @@ async resetState() {
     if (!BackgroundAudioRecorder) {
       throw new Error('Módulo nativo BackgroundAudioRecorder não disponível');
     }
-  
+
     try {
       const filePath = await BackgroundAudioRecorder.getOutputFilePath();
-  
+
       if (filePath) {
         this._outputFile = filePath;
-  
+
         this._statusChangeListeners.forEach(listener => {
           listener({
             isRecording: this._isRecording,
@@ -267,28 +414,28 @@ async resetState() {
             outputFile: this._outputFile
           });
         });
-  
+
         try {
-          const normalizedPath = filePath.startsWith('file://') 
-            ? filePath 
+          const normalizedPath = filePath.startsWith('file://')
+            ? filePath
             : `file://${filePath}`;
-            
+
           const fileInfo = await FileSystem.getInfoAsync(normalizedPath);
         } catch (error) {
           console.error("Erro ao verificar arquivo:", error);
         }
-  
+
         return filePath;
       } else {
-        
+
         if (this._outputFile) {
           try {
-            const normalizedPath = this._outputFile.startsWith('file://') 
-              ? this._outputFile 
+            const normalizedPath = this._outputFile.startsWith('file://')
+              ? this._outputFile
               : `file://${this._outputFile}`;
-              
+
             const fileInfo = await FileSystem.getInfoAsync(normalizedPath);
-            
+
             if (fileInfo.exists && fileInfo.size > 0) {
               return this._outputFile;
             }
@@ -296,7 +443,7 @@ async resetState() {
             console.error("Erro ao verificar arquivo memorizado:", error);
           }
         }
-        
+
         return null;
       }
     } catch (error) {
@@ -309,7 +456,7 @@ async resetState() {
     if (Platform.OS !== 'android') {
       throw new Error('Gravação em segundo plano disponível apenas para Android');
     }
-    
+
     try {
       return {
         isRecording: this._isRecording,
@@ -328,60 +475,118 @@ async resetState() {
       };
     }
   }
+
   async startRecording(elapsedTimeBeforePause = 0) {
     if (Platform.OS !== 'android') {
-      throw new Error('Gravação em segundo plano disponível apenas para Android');
+      throw new Error('Background recording only available for Android');
     }
 
     if (!BackgroundAudioRecorder) {
-      throw new Error('Módulo nativo BackgroundAudioRecorder não disponível');
+      throw new Error('Native BackgroundAudioRecorder module not available');
     }
 
     try {
+      const currentStatus = await BackgroundAudioRecorder.getStatus();
+
+      if (currentStatus.isRecording && !currentStatus.isPaused) {
+        this._isRecording = true;
+        this._isPaused = false;
+        return true;
+      }
+
       await BackgroundAudioRecorder.startRecording(elapsedTimeBeforePause);
+
       this._isRecording = true;
       this._isPaused = false;
+
+      this._statusChangeListeners.forEach(listener => {
+        try {
+          listener({
+            isRecording: true,
+            isPaused: false,
+            currentTime: this._recordingTime,
+            outputFile: this._outputFile
+          });
+        } catch (error) {
+          console.error('Error in listener after startRecording:', error);
+        }
+      });
+
       return true;
     } catch (error) {
-      console.error('Erro ao iniciar gravação:', error);
+      console.error('Error starting recording:', error);
       throw error;
     }
   }
 
   async pauseRecording() {
     if (!BackgroundAudioRecorder) {
-      throw new Error('Módulo nativo BackgroundAudioRecorder não disponível');
-    }
-
-    if (!this._isRecording || this._isPaused) {
-      throw new Error('Nenhuma gravação ativa para pausar');
+      throw new Error('Native BackgroundAudioRecorder module not available');
     }
 
     try {
+      const currentStatus = await BackgroundAudioRecorder.getStatus();
+
+      if (!currentStatus.isRecording || currentStatus.isPaused) {
+        return false;
+      }
+
       await BackgroundAudioRecorder.pauseRecording();
+
       this._isPaused = true;
+
+      this._statusChangeListeners.forEach(listener => {
+        try {
+          listener({
+            isRecording: this._isRecording,
+            isPaused: true,
+            currentTime: this._recordingTime,
+            outputFile: this._outputFile
+          });
+        } catch (error) {
+          console.error('Error in listener after pauseRecording:', error);
+        }
+      });
+
       return true;
     } catch (error) {
-      console.error('Erro ao pausar gravação:', error);
+      console.error('Error pausing recording:', error);
       throw error;
     }
   }
 
   async resumeRecording() {
     if (!BackgroundAudioRecorder) {
-      throw new Error('Módulo nativo BackgroundAudioRecorder não disponível');
-    }
-
-    if (!this._isRecording || !this._isPaused) {
-      throw new Error('Nenhuma gravação pausada para retomar');
+      throw new Error('Native BackgroundAudioRecorder module not available');
     }
 
     try {
+      const currentStatus = await BackgroundAudioRecorder.getStatus();
+
+      if (!currentStatus.isRecording || !currentStatus.isPaused) {
+        return false;
+      }
+
       await BackgroundAudioRecorder.resumeRecording();
+
       this._isPaused = false;
+
+      this._statusChangeListeners.forEach(listener => {
+        try {
+          listener({
+            isRecording: this._isRecording,
+            isPaused: false,
+            currentTime: this._recordingTime,
+            outputFile: this._outputFile
+          });
+        } catch (error) {
+          console.error('Error in listener after resumeRecording:', error);
+        }
+      });
+
       return true;
     } catch (error) {
-      console.error('Erro ao retomar gravação:', error);
+      console.error('Error resuming recording:', error);
       throw error;
     }
   }
@@ -461,6 +666,11 @@ async resetState() {
     if (this._recordingCompleteListener) {
       this._recordingCompleteListener.remove();
       this._recordingCompleteListener = null;
+    }
+
+    if (this._syncTimer) {
+      clearInterval(this._syncTimer);
+      this._syncTimer = null;
     }
 
     this._timeUpdateListeners = [];

@@ -41,24 +41,37 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
           String action = intent.getAction();
           
           if ("com.thiagolins.vocalizeai.OUTPUT_FILE_SET".equals(action)) {
-            String outputFile = intent.getStringExtra("outputFile");
-            if (outputFile != null) {
-                currentOutputFile = outputFile;
-                
-                WritableMap params = Arguments.createMap();
-                params.putString("outputFile", "file://" + outputFile);
-                params.putBoolean("isRecording", isRecording);
-                params.putBoolean("isPaused", isPaused);
-                params.putDouble("currentTime", currentRecordingTime);
-                
-                sendEvent("onRecordingStatusChange", params);
-            }
+              String outputFile = intent.getStringExtra("outputFile");
+              if (outputFile != null) {
+                  currentOutputFile = outputFile;
+                  
+                  WritableMap params = Arguments.createMap();
+                  params.putString("outputFile", "file://" + outputFile);
+                  params.putBoolean("isRecording", isRecording);
+                  params.putBoolean("isPaused", isPaused);
+                  params.putDouble("currentTime", currentRecordingTime);
+                  
+                  sendEvent("onRecordingStatusChange", params);
+              }
           } 
           else if ("com.thiagolins.vocalizeai.RECORDING_STATUS".equals(action)) {
-              isRecording = intent.getBooleanExtra("isRecording", false);
-              isPaused = intent.getBooleanExtra("isPaused", false);
-              currentOutputFile = intent.getStringExtra("outputFile");
-              currentRecordingTime = intent.getLongExtra("currentTime", 0);
+              boolean newIsRecording = intent.getBooleanExtra("isRecording", false);
+              boolean newIsPaused = intent.getBooleanExtra("isPaused", false);
+              String newOutputFile = intent.getStringExtra("outputFile");
+              long newRecordingTime = intent.getLongExtra("currentTime", 0);
+              
+              Log.d(TAG, "Status broadcast received: isRecording=" + newIsRecording + 
+                    ", isPaused=" + newIsPaused + ", file=" + newOutputFile);
+              
+              boolean stateChanged = (isRecording != newIsRecording || isPaused != newIsPaused);
+              
+              isRecording = newIsRecording;
+              isPaused = newIsPaused;
+              currentRecordingTime = newRecordingTime;
+              
+              if (newOutputFile != null) {
+                  currentOutputFile = newOutputFile;
+              }
               
               WritableMap params = Arguments.createMap();
               params.putBoolean("isRecording", isRecording);
@@ -66,10 +79,22 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
               params.putString("outputFile", currentOutputFile != null ? "file://" + currentOutputFile : null);
               params.putDouble("currentTime", currentRecordingTime);
               
-              sendEvent("onRecordingStatusChange", params);
+              new Handler(Looper.getMainLooper()).post(() -> {
+                  sendEvent("onRecordingStatusChange", params);
+                  
+                  if (stateChanged) {
+                      new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                          sendEvent("onRecordingStatusChange", params);
+                      }, 100);
+                      
+                      new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                          sendEvent("onRecordingStatusChange", params);
+                      }, 300);
+                  }
+              });
           } else if ("com.thiagolins.vocalizeai.RECORDING_TIME_UPDATE".equals(action)) {
               currentRecordingTime = intent.getLongExtra("currentTime", 0);
-      
+              
               String updatedOutputFile = intent.getStringExtra("outputFile");
               if (updatedOutputFile != null && !updatedOutputFile.isEmpty()) {
                   if (currentOutputFile == null || !currentOutputFile.equals(updatedOutputFile)) {
@@ -89,6 +114,9 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
               String outputFile = intent.getStringExtra("outputFile");
               long duration = intent.getLongExtra("duration", 0);
               
+              isRecording = false;
+              isPaused = false;
+              
               if (outputFile != null) {
                   File file = new File(outputFile);
                   if (file.exists() && file.length() > 0) {
@@ -97,6 +125,7 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
                       }
                       
                       String fileUrl = "file://" + outputFile;
+                      currentOutputFile = outputFile;
                       
                       WritableMap params = Arguments.createMap();
                       params.putString("outputFile", fileUrl);
@@ -104,28 +133,50 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
                       
                       sendEvent("onRecordingComplete", params);
                       
-                      isRecording = false;
-                      isPaused = false;
-                      currentOutputFile = outputFile;
+                      WritableMap statusParams = Arguments.createMap();
+                      statusParams.putBoolean("isRecording", false);
+                      statusParams.putBoolean("isPaused", false);
+                      statusParams.putString("outputFile", fileUrl);
+                      statusParams.putDouble("currentTime", duration);
+                      
+                      sendEvent("onRecordingStatusChange", statusParams);
                   } else {
-                      Log.e(TAG, "Arquivo não existe ou está vazio: " + outputFile);
+                      Log.e(TAG, "File doesn't exist or is empty: " + outputFile);
                       
                       WritableMap params = Arguments.createMap();
-                      params.putString("error", "Arquivo não existe ou está vazio");
+                      params.putString("error", "File doesn't exist or is empty");
                       
                       sendEvent("onRecordingError", params);
                   }
               } else {
-                  Log.e(TAG, "OutputFile recebido é null");
+                  Log.e(TAG, "Received null outputFile");
                   
                   WritableMap params = Arguments.createMap();
-                  params.putString("error", "Caminho do arquivo é null");
+                  params.putString("error", "File path is null");
                   
                   sendEvent("onRecordingError", params);
               }
+          } else if ("com.thiagolins.vocalizeai.RECORDING_ERROR".equals(action)) {
+              String errorMessage = intent.getStringExtra("error");
+              
+              WritableMap params = Arguments.createMap();
+              params.putString("error", errorMessage != null ? errorMessage : "Unknown error");
+              
+              sendEvent("onRecordingError", params);
+              
+              isRecording = false;
+              isPaused = false;
+              
+              WritableMap statusParams = Arguments.createMap();
+              statusParams.putBoolean("isRecording", false);
+              statusParams.putBoolean("isPaused", false);
+              statusParams.putDouble("currentTime", currentRecordingTime);
+              statusParams.putString("outputFile", currentOutputFile != null ? "file://" + currentOutputFile : null);
+              
+              sendEvent("onRecordingStatusChange", statusParams);
           }
       }
-  };
+    };
 
     public AudioRecorderModule(ReactApplicationContext reactContext) {
       super(reactContext);
@@ -162,17 +213,17 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
                   .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
                   .emit(eventName, params);
           } else {
-              new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                  if (reactContext.hasActiveReactInstance()) {
-                      try {
-                          reactContext
-                              .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
-                              .emit(eventName, params);
-                      } catch (Exception retryEx) {
-                          Log.e(TAG, "Falha na nova tentativa de enviar evento: " + retryEx.getMessage());
-                      }
-                  }
-              }, 500);
+              new Handler(Looper.getMainLooper()).post(() -> {
+                if (reactContext.hasActiveReactInstance()) {
+                    try {
+                        reactContext
+                            .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+                            .emit(eventName, params);
+                    } catch (Exception retryEx) {
+                        Log.e(TAG, "Falha no envio de evento pela UI thread: " + retryEx.getMessage());
+                    }
+                }
+            });
           }
       } catch (Exception e) {
           Log.e(TAG, "Erro ao enviar evento " + eventName + ": " + e.getMessage(), e);
@@ -333,6 +384,43 @@ public class AudioRecorderModule extends ReactContextBaseJavaModule implements L
 
     @Override
     public void onHostResume() {
+        try {
+            reactContext.unregisterReceiver(recordingStatusReceiver);
+            
+            IntentFilter filter = new IntentFilter();
+            filter.addAction("com.thiagolins.vocalizeai.RECORDING_STATUS");
+            filter.addAction("com.thiagolins.vocalizeai.RECORDING_TIME_UPDATE");
+            filter.addAction("com.thiagolins.vocalizeai.RECORDING_COMPLETED");
+            filter.addAction("com.thiagolins.vocalizeai.OUTPUT_FILE_SET");
+            filter.addAction("com.thiagolins.vocalizeai.RECORDING_ERROR");
+    
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                reactContext.registerReceiver(recordingStatusReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                reactContext.registerReceiver(recordingStatusReceiver, filter);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Erro ao registrar receptor na retomada: " + e.getMessage());
+        }
+        
+        syncStatus();
+    }
+
+    private void syncStatus() {
+      try {
+          WritableMap status = Arguments.createMap();
+          status.putBoolean("isRecording", isRecording);
+          status.putBoolean("isPaused", isPaused);
+          status.putDouble("currentTime", currentRecordingTime);
+          status.putString("outputFile", currentOutputFile);
+          
+          sendEvent("onRecordingStatusChange", status);
+          
+          Intent requestStatusIntent = new Intent("com.thiagolins.vocalizeai.REQUEST_STATUS");
+          reactContext.sendBroadcast(requestStatusIntent);
+      } catch (Exception e) {
+          Log.e(TAG, "Erro ao sincronizar status: " + e.getMessage());
+      }
     }
 
     @Override

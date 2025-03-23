@@ -9,7 +9,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { SetStateAction, useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   AppState,
@@ -39,6 +39,7 @@ export default function HomeScreen() {
   const [outputFile, setOutputFile] = useState<string | null>(null);
   const [elapsedTimeBeforePause, setElapsedTimeBeforePause] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [isProcessingAction, setIsProcessingAction] = useState(false);
 
   const timeUpdateListenerRef = useRef<Function | null>(null);
   const statusChangeListenerRef = useRef<Function | null>(null);
@@ -61,6 +62,87 @@ export default function HomeScreen() {
     setup();
     return () => {
       cleanup();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS === "android") {
+      const syncInterval = setInterval(async () => {
+        if (isRecording) {
+          try {
+            const status = await BackgroundAudioRecorder.getStatus();
+            setIsRecording(status.isRecording);
+            setIsPaused(status.isPaused);
+
+          } catch (error) {
+            console.error("Erro ao sincronizar via polling:", error);
+          }
+        }
+      }, 1000);
+
+      return () => clearInterval(syncInterval);
+    }
+
+    const validateStateConsistency = async () => {
+      if (!isRecording && recordingTime > 0) {
+        try {
+          const status = await BackgroundAudioRecorder.getStatus();
+          setIsRecording(status.isRecording);
+          setIsPaused(status.isPaused);
+
+          if (!status.isRecording) {
+            setRecordingTime(0);
+            setElapsedTimeBeforePause(0);
+            setOutputFile(null);
+          }
+        } catch (error) {
+          console.error("Erro ao validar consistência:", error);
+        }
+      }
+    };
+
+    const consistencyInterval = setInterval(validateStateConsistency, 2000);
+    return () => clearInterval(consistencyInterval);
+  }, [isRecording, isPaused]);
+  useEffect(() => {
+    const syncState = async () => {
+      try {
+        const status = await BackgroundAudioRecorder.getStatus();
+
+        if (
+          status.isRecording !== isRecording ||
+          status.isPaused !== isPaused
+        ) {
+          setIsRecording(status.isRecording);
+          setIsPaused(status.isPaused);
+          setRecordingTime(status.currentTime || 0);
+          if (status.outputFile) {
+            setOutputFile(status.outputFile);
+          }
+        }
+      } catch (error) {
+        showMessage({
+          message: "Erro",
+          description: "Erro ao sincronizar o estado da gravação",
+          type: "danger"
+        })
+      }
+    };
+
+    syncState();
+
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === "active"
+      ) {
+        syncState();
+      }
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
     };
   }, []);
 
@@ -89,7 +171,7 @@ export default function HomeScreen() {
       setOutputFile(filePath);
 
       if (vocalizations.length === 0) {
-        fetchVocalizations()
+        fetchVocalizations();
         setLoadingVocalizations(true);
         try {
           const vocs = await getVocalizacoes();
@@ -147,20 +229,66 @@ export default function HomeScreen() {
   };
 
   const setupRecordingListeners = () => {
+    if (timeUpdateListenerRef.current) {
+      timeUpdateListenerRef.current();
+      timeUpdateListenerRef.current = null;
+    }
+
+    if (statusChangeListenerRef.current) {
+      statusChangeListenerRef.current();
+      statusChangeListenerRef.current = null;
+    }
+
+    if (recordingCompleteListenerRef.current) {
+      recordingCompleteListenerRef.current();
+      recordingCompleteListenerRef.current = null;
+    }
+
     timeUpdateListenerRef.current =
-      BackgroundAudioRecorder.addTimeUpdateListener((time: number) => {
+      BackgroundAudioRecorder.addTimeUpdateListener((time: SetStateAction<number>) => {
         setRecordingTime(time);
       });
+
     statusChangeListenerRef.current =
-      BackgroundAudioRecorder.addStatusChangeListener((status: any) => {
-        setIsRecording(status.isRecording);
-        setIsPaused(status.isPaused);
-        setOutputFile(status.outputFile);
+      BackgroundAudioRecorder.addStatusChangeListener((status: { isRecording: boolean; isPaused: boolean; outputFile: string | null; currentTime: SetStateAction<number>; }) => {
+        setIsRecording((prev) => {
+          return status.isRecording;
+        });
+
+        setIsPaused((prev) => {
+          return status.isPaused;
+        });
+
+        if (status.outputFile) {
+          setOutputFile((prev) => {
+            return status.outputFile;
+          });
+        }
+
+        if (typeof status.currentTime === "number" && status.currentTime > 0) {
+          setRecordingTime(status.currentTime);
+        }
       });
+
     recordingCompleteListenerRef.current =
-      BackgroundAudioRecorder.addRecordingCompleteListener((data: any) => {
+      BackgroundAudioRecorder.addRecordingCompleteListener((data: { outputFile: SetStateAction<string | null>; duration: SetStateAction<number>; }) => {
         setOutputFile(data.outputFile);
         setRecordingTime(data.duration);
+        setIsRecording(false);
+        setIsPaused(false);
+      });
+
+    BackgroundAudioRecorder.getStatus()
+      .then((status) => {
+        setIsRecording(status.isRecording);
+        setIsPaused(status.isPaused);
+        setRecordingTime(status.currentTime || 0);
+        if (status.outputFile) {
+          setOutputFile(status.outputFile);
+        }
+      })
+      .catch((error) => {
+        console.error("Error getting initial status:", error);
       });
   };
 
@@ -270,6 +398,42 @@ export default function HomeScreen() {
       setIsLoading(false);
     }
   };
+  const handleAppStateChange = async (nextAppState: any) => {
+    if (
+      appState.current.match(/inactive|background/) &&
+      nextAppState === "active"
+    ) {
+
+      if (isRecording || recordingTime > 0) {
+        try {
+          BackgroundAudioRecorder.forceSync();
+
+          const status = await BackgroundAudioRecorder.getStatus();
+
+          setIsRecording(status.isRecording);
+          setIsPaused(status.isPaused);
+          setRecordingTime(status.currentTime);
+          setOutputFile(status.outputFile);
+        } catch (error) {
+          showMessage({
+            message: "Erro",
+            description: "Erro ao sincronizar após mudança de AppState",
+            type: "danger",
+          })
+        }
+      }
+    }
+
+    appState.current = nextAppState;
+  };
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener(
+      "change",
+      handleAppStateChange
+    );
+    return () => subscription.remove();
+  }, [isRecording, recordingTime]);
 
   const handleDiscard = async () => {
     try {
@@ -348,14 +512,56 @@ export default function HomeScreen() {
   }
 
   const handleRecordPress = async () => {
-    if (isLoading) return;
+    if (isLoading || isProcessingAction) return;
 
-    if (isRecording && !isPaused) {
-      await pauseRecording();
-    } else if (isRecording && isPaused) {
-      await resumeRecording();
-    } else {
-      await startRecording();
+    try {
+      setIsProcessingAction(true);
+      setIsLoading(true);
+
+      const currentStatus = await BackgroundAudioRecorder.getStatus();
+
+      if (currentStatus.isRecording && !currentStatus.isPaused) {
+        await BackgroundAudioRecorder.pauseRecording();
+        setIsPaused(true);
+      } else if (currentStatus.isRecording && currentStatus.isPaused) {
+        await BackgroundAudioRecorder.resumeRecording();
+        setIsPaused(false);
+        setIsRecording(true);
+      } else {
+        await BackgroundAudioRecorder.startRecording(elapsedTimeBeforePause);
+        setIsRecording(true);
+        setIsPaused(false);
+      }
+
+      setTimeout(async () => {
+        try {
+          const updatedStatus = await BackgroundAudioRecorder.getStatus();
+
+          setIsRecording(updatedStatus.isRecording);
+          setIsPaused(updatedStatus.isPaused);
+          setRecordingTime(updatedStatus.currentTime);
+          if (updatedStatus.outputFile) {
+            setOutputFile(updatedStatus.outputFile);
+          }
+
+          setIsLoading(false);
+        } catch (error) {
+          console.error("Error getting updated status:", error);
+          setIsLoading(false);
+        }
+
+        setIsProcessingAction(false);
+      }, 500);
+    } catch (error) {
+      console.error("Error in recording action:", error);
+      setIsLoading(false);
+      setIsProcessingAction(false);
+
+      showMessage({
+        message: error instanceof Error ? error.message : "Error",
+        description: "An error occurred while controlling the recording",
+        type: "danger",
+      });
     }
   };
 
@@ -387,7 +593,7 @@ export default function HomeScreen() {
           message: "Erro",
           description: "Erro ao buscar caminho do arquivo de áudio.",
           type: "danger",
-        })
+        });
       }
     }
 
@@ -421,14 +627,13 @@ export default function HomeScreen() {
           message: "Erro",
           description: "Erro ao verificar arquivo de áudio.",
           type: "danger",
-        })
+        });
         throw fileCheckError;
       }
 
       const audioDir = await FileOperations.getAudioDirectory();
       const fileName = `recording_${Date.now()}.m4a`;
       const newUri = `${audioDir}${fileName}`;
-
 
       await FileSystem.copyAsync({
         from: normalizedPath,
@@ -505,15 +710,14 @@ export default function HomeScreen() {
               message: "Erro",
               description: "Não foi possível sincronizar o estado da gravação",
               type: "danger",
-            })
+            });
           }
         }
       };
 
       resetScreenState();
 
-      return () => {
-      };
+      return () => {};
     }, [isRecording])
   );
 
