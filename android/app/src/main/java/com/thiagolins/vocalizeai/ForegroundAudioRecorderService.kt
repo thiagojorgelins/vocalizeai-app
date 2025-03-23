@@ -69,15 +69,12 @@ class ForegroundAudioRecorderService : Service() {
             ACTION_START_RECORDING -> {
                 elapsedTimeBeforePause = intent.getLongExtra(EXTRA_ELAPSED_TIME, 0)
                 startRecording()
-                showNotification("Gravação em andamento")
             }
             ACTION_PAUSE_RECORDING -> {
                 pauseRecording()
-                showNotification("Gravação pausada")
             }
             ACTION_RESUME_RECORDING -> {
                 resumeRecording()
-                showNotification("Gravação em andamento")
             }
             ACTION_STOP_RECORDING -> {
                 stopRecording()
@@ -90,6 +87,7 @@ class ForegroundAudioRecorderService : Service() {
     }
     
     private fun showNotification(contentText: String) {
+        updateNotification()
         val intent = packageManager.getLaunchIntentForPackage(packageName)
         val pendingIntent = PendingIntent.getActivity(
             this, 0, intent, 
@@ -219,6 +217,8 @@ class ForegroundAudioRecorderService : Service() {
                 timer = null
                 
                 elapsedTimeBeforePause = currentRecordingTime
+
+                updateNotification()
                 
                 sendBroadcast(Intent("com.thiagolins.vocalizeai.RECORDING_STATUS")
                     .putExtra("isRecording", isRecording)
@@ -242,6 +242,8 @@ class ForegroundAudioRecorderService : Service() {
                 isPaused = false
                 startTimer()
                 
+                updateNotification()
+
                 sendBroadcast(Intent("com.thiagolins.vocalizeai.RECORDING_STATUS")
                     .putExtra("isRecording", true)
                     .putExtra("isPaused", false)
@@ -479,7 +481,7 @@ class ForegroundAudioRecorderService : Service() {
 
         
         builder.addAction(
-            android.R.drawable.ic_media_pause, 
+            if (isPaused) android.R.drawable.ic_media_play else android.R.drawable.ic_media_pause, 
             if (isPaused) "Continuar" else "Pausar", 
             pauseResumePendingIntent
         )
