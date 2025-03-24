@@ -12,3 +12,14 @@
 -keep class com.facebook.react.turbomodule.** { *; }
 
 # Add any project specific keep options here:
+# Hermes
+-keep class com.facebook.hermes.unicode.** { *; }
+-keep class com.facebook.jni.** { *; }
+
+# Expo
+-keep class expo.modules.** { *; }
+
+# Keep native methods
+-keepclassmembers class * {
+    native <methods>;
+}

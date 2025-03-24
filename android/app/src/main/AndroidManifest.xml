@@ -60,7 +60,7 @@
       android:name=".ForegroundAudioRecorderService"
       android:enabled="true"
       android:exported="false"
-      android:foregroundServiceType="microphone"
+      android:foregroundServiceType="microphone|mediaPlayback"
       android:stopWithTask="false" />
     <provider
       android:name="androidx.core.content.FileProvider"

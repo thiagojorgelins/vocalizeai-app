@@ -10,6 +10,7 @@ export default {
     scheme: "myapp",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
+    jsEngine: "hermes",
 
     ios: {
       bundleIdentifier: "com.thiagolins.vocalizeai",
@@ -40,25 +41,22 @@ export default {
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_MICROPHONE",
         "WAKE_LOCK",
-        "FOREGROUND_SERVICE_MEDIA_PLAYBACK",
-        "RECORD_AUDIO",
         "MODIFY_AUDIO_SETTINGS",
         "NOTIFICATIONS",
-        "POST_NOTIFICATIONS",
-        "RECEIVE_BOOT_COMPLETED",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "VIBRATE"
+        "POST_NOTIFICATIONS"
       ],
       usesCleartextTraffic: true,
       foregroundService: {
         name: "Gravação de Áudio",
         icon: "./assets/images/icon.png",
         notificationTitle: "Gravação em andamento",
-        notificationColor: "#FF0000",
-        notificationIconColor: "#FF0000",
-        startOnBoot: true
-      }
+        notificationColor: "#FF0000"
+      },
+      enableProguardInReleaseBuilds: true,
+      buildToolsVersion: "33.0.0",
+      minSdkVersion: 26,
+      compileSdkVersion: 34,
+      targetSdkVersion: 34
     },
 
     web: {
@@ -69,7 +67,12 @@ export default {
 
     plugins: [
       "expo-router",
-      "@config-plugins/ffmpeg-kit-react-native",
+      [
+        "@config-plugins/ffmpeg-kit-react-native",
+        {
+          variant: "audio"
+        }
+      ],
       [
         "expo-splash-screen",
         {
@@ -83,30 +86,28 @@ export default {
         "expo-build-properties",
         {
           android: {
+            compileSdkVersion: 34,
+            targetSdkVersion: 34,
+            minSdkVersion: 26,
+            buildToolsVersion: "33.0.0",
+            extraProguardRules: `-keep class com.facebook.hermes.unicode.** { *; }
+                                 -keep class com.facebook.jni.** { *; }
+                                 -keep class expo.modules.** { *; }
+                                 -keepclassmembers class * {
+                                    native <methods>;
+                                 }`,
+            enableProguardInReleaseBuilds: true,
+            enableShrinkResources: true,
+            useLegacyPackaging: false,
             permissions: [
               "RECORD_AUDIO",
               "FOREGROUND_SERVICE",
-              "WAKE_LOCK",
-              "FOREGROUND_SERVICE_MEDIA_PLAYBACK",
               "FOREGROUND_SERVICE_MICROPHONE",
+              "WAKE_LOCK",
               "MODIFY_AUDIO_SETTINGS",
-              "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
               "NOTIFICATIONS",
-              "POST_NOTIFICATIONS",
-              "RECEIVE_BOOT_COMPLETED",
-              "READ_EXTERNAL_STORAGE",
-              "WRITE_EXTERNAL_STORAGE",
-              "VIBRATE"
-            ],
-            foregroundService: {
-              name: "Gravação de Áudio",
-              icon: "./assets/images/icon.png",
-              notificationTitle: "Gravação em andamento",
-              notificationColor: "#FF0000",
-              notificationIconColor: "#FF0000",
-              startOnBoot: true
-            },
-            usesCleartextTraffic: true,
+              "POST_NOTIFICATIONS"
+            ]
           },
           ios: {
             infoPlist: {
@@ -129,18 +130,7 @@ export default {
           icon: "./assets/images/icon.png",
           color: "#ffffff",
           androidMode: "default",
-          androidCollapsedTitle: "Gravação em andamento",
-          iosDisplayInForeground: true,
-          androidBackgroundColor: "#ffffff",
-          androidForegroundService: {
-            name: "Gravação de Áudio",
-            icon: "./assets/images/icon.png",
-            notificationTitle: "Gravação em andamento",
-            notificationColor: "#FF0000",
-            importance: "high",
-            visibilityOnLockScreen: "public",
-            sticky: true
-          }
+          androidCollapsedTitle: "Gravação em andamento"
         }
       ],
       [
@@ -154,6 +144,11 @@ export default {
     experiments: {
       typedRoutes: true
     },
+
+    assetBundlePatterns: [
+      "assets/images/*.png",
+      "assets/fonts/*.ttf"
+    ],
 
     extra: {
       router: {
