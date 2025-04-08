@@ -11,14 +11,13 @@ import {
   KeyboardAvoidingView,
   Linking,
   Modal,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
-import { showMessage } from "react-native-flash-message";
+import Toast from "react-native-toast-message";
 
 export default function CadastroParticipanteScreen() {
   const [genero, setGenero] = useState("Masculino");
@@ -73,12 +72,10 @@ export default function CadastroParticipanteScreen() {
 
       await createParticipante(payload);
 
-      showMessage({
-        message: "Participante criado com sucesso!",
-        description: "Você já pode acessar o sistema completo.",
+      Toast.show({
         type: "success",
-        duration: 3000,
-        icon: "success",
+        text1: "Participante criado com sucesso!",
+        text2: "Você já pode acessar o sistema completo.",
       });
 
       router.replace("/(tabs)");
@@ -87,12 +84,10 @@ export default function CadastroParticipanteScreen() {
         error.response?.data?.detail ||
         error.message ||
         "Erro ao criar participante.";
-      showMessage({
-        message: "Erro ao criar participante",
-        description: errorMessage,
-        type: "danger",
-        duration: 3000,
-        icon: "danger",
+      Toast.show({
+        type: "error",
+        text1: "Erro ao criar participante",
+        text2: errorMessage,
       });
     } finally {
       setIsLoading(false);
@@ -100,10 +95,7 @@ export default function CadastroParticipanteScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      behavior={"height"}
-      style={styles.container}
-    >
+    <KeyboardAvoidingView behavior={"height"} style={styles.container}>
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
@@ -111,10 +103,10 @@ export default function CadastroParticipanteScreen() {
         <View style={styles.header}>
           <View style={styles.avatarsContainer}>
             <View style={styles.avatarCircle}>
-              <MaterialIcons name="boy" size={30} color="#2196F3" />
+              <MaterialIcons name="face" size={30} color="#2196F3" />
             </View>
             <View style={styles.avatarCircle}>
-              <MaterialIcons name="girl" size={30} color="#E91E63" />
+              <MaterialIcons name="face-3" size={30} color="#E91E63" />
             </View>
           </View>
           <Text style={styles.title}>Cadastro de Participante</Text>
@@ -356,7 +348,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     margin: 16,
     padding: 20,
-    elevation: 3
+    elevation: 3,
   },
   section: {
     marginBottom: 24,
@@ -395,13 +387,13 @@ const styles = StyleSheet.create({
     color: "#666",
   },
   supportLevelContainer: {
-    width: '100%',
+    width: "100%",
     marginBottom: 16,
   },
   selectWithHelpContainer: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
   },
   helpButton: {
     padding: 8,
@@ -420,7 +412,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF",
     borderRadius: 16,
     padding: 20,
-    maxHeight: "80%",        
+    maxHeight: "80%",
     elevation: 5,
   },
   modalHeader: {

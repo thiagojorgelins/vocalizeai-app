@@ -15,13 +15,12 @@ import {
   ActivityIndicator,
   FlatList,
   Modal,
-  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
-import { showMessage } from "react-native-flash-message";
+import Toast from "react-native-toast-message";
 
 export default function UsuariosScreen() {
   const [usuarios, setUsuarios] = useState<any[]>([]);
@@ -61,11 +60,11 @@ export default function UsuariosScreen() {
       const users = await getAllUsers();
       setUsuarios(users);
     } catch (error: any) {
-      showMessage({
-        message: "Erro",
-        description: error.message || "Não foi possível carregar os usuários",
-        type: "danger",
-      });
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Não foi possível carregar os usuários",
+      })
     } finally {
       setIsLoading(false);
     }
@@ -91,31 +90,29 @@ export default function UsuariosScreen() {
     let isValid = true;
 
     if (!nome.trim()) {
-      showMessage({
-        message: "Erro",
-        description: "O nome é obrigatório",
-        type: "warning",
-      });
+      Toast.show({
+        type: "error",
+        text1: "Erro",
+        text2: "O nome é obrigatório",
+      })
       isValid = false;
     }
 
     if (celular && celular.replace(/\D/g, "").length < 10) {
       setCelularError("Celular inválido");
-      showMessage({
-        message: "Erro",
-        description: "Número de celular inválido",
-        type: "warning",
-      });
+      Toast.show({
+        type: "error",
+        text1: "Número de celular inválido",
+      })
       isValid = false;
     }
 
     if (email && !validarEmail(email)) {
       setEmailError("Formato de email inválido");
-      showMessage({
-        message: "Erro",
-        description: "Formato de email inválido",
-        type: "warning",
-      });
+      Toast.show({
+        type: "error",
+        text1: "Formato de email inválido",
+      })
       isValid = false;
     }
 
@@ -137,20 +134,20 @@ export default function UsuariosScreen() {
 
       await updateUserAdmin(updateData);
 
-      showMessage({
-        message: "Sucesso",
-        description: "Dados do usuário atualizados com sucesso!",
+      Toast.show({
         type: "success",
-      });
+        text1: "Sucesso",
+        text2: "Dados do usuário atualizados com sucesso!",
+      })
 
       setShowModal(false);
       await fetchUsuarios();
     } catch (error: any) {
-      showMessage({
-        message: "Erro",
-        description: error.message || "Erro ao atualizar os dados do usuário",
-        type: "danger",
-      });
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Erro ao atualizar os dados do usuário",
+      })
     } finally {
       setIsLoading(false);
     }
@@ -162,20 +159,20 @@ export default function UsuariosScreen() {
     try {
       await deleteUser(selectedUsuario.id);
 
-      showMessage({
-        message: "Sucesso",
-        description: "Usuário deletado com sucesso!",
+      Toast.show({
         type: "success",
-      });
+        text1: "Sucesso",
+        text2: "Usuário deletado com sucesso!",
+      })
 
       setShowConfirmModal(false);
       fetchUsuarios();
     } catch (error: any) {
-      showMessage({
-        message: "Erro",
-        description: "Erro ao deletar o usuário",
-        type: "danger",
-      });
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Erro ao deletar o usuário",
+      })
     }
   };
 

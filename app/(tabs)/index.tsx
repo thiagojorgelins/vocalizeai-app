@@ -9,7 +9,13 @@ import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system";
 import { useFocusEffect, useRouter } from "expo-router";
-import { SetStateAction, useCallback, useEffect, useRef, useState } from "react";
+import {
+  SetStateAction,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   AppState,
@@ -21,7 +27,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { showMessage } from "react-native-flash-message";
+import Toast from "react-native-toast-message";
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -73,9 +79,12 @@ export default function HomeScreen() {
             const status = await BackgroundAudioRecorder.getStatus();
             setIsRecording(status.isRecording);
             setIsPaused(status.isPaused);
-
           } catch (error) {
-            console.error("Erro ao sincronizar via polling:", error);
+            Toast.show({
+              type: "error",
+              text1: "Erro ao sincronizar estado",
+              text2: "Erro ao sincronizar o estado da gravação.",
+            })
           }
         }
       }, 1000);
@@ -96,7 +105,11 @@ export default function HomeScreen() {
             setOutputFile(null);
           }
         } catch (error) {
-          console.error("Erro ao validar consistência:", error);
+          Toast.show({
+            type: "error",
+            text1: "Erro ao validar consistência",
+            text2: "Erro ao validar a consistência do estado da gravação.",
+          });
         }
       }
     };
@@ -104,6 +117,7 @@ export default function HomeScreen() {
     const consistencyInterval = setInterval(validateStateConsistency, 2000);
     return () => clearInterval(consistencyInterval);
   }, [isRecording, isPaused]);
+
   useEffect(() => {
     const syncState = async () => {
       try {
@@ -121,11 +135,11 @@ export default function HomeScreen() {
           }
         }
       } catch (error) {
-        showMessage({
-          message: "Erro",
-          description: "Erro ao sincronizar o estado da gravação",
-          type: "danger"
-        })
+        Toast.show({
+          type: "error",
+          text1: "Erro ao sincronizar estado",
+          text2: "Erro ao sincronizar o estado da gravação.",
+        });
       }
     };
 
@@ -146,6 +160,14 @@ export default function HomeScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    const subscription = AppState.addEventListener(
+      "change",
+      handleAppStateChange
+    );
+    return () => subscription.remove();
+  }, [isRecording, recordingTime]);
+
   const setupApp = async () => {
     await requestPermissions();
     setupAppStateListener();
@@ -160,10 +182,10 @@ export default function HomeScreen() {
       const filePath = await BackgroundAudioRecorder.getOutputFilePath();
 
       if (!filePath) {
-        showMessage({
-          message: "Nenhuma gravação",
-          description: "Não foi encontrada gravação para salvar.",
-          type: "warning",
+        Toast.show({
+          type: "error",
+          text1: "Nenhuma gravação",
+          text2: "Não foi encontrada gravação para salvar.",
         });
         return;
       }
@@ -181,10 +203,10 @@ export default function HomeScreen() {
             setSelectedVocalizationId(vocs[0].id);
           }
         } catch (error) {
-          showMessage({
-            message: error instanceof Error ? error.message : "Erro",
-            description: "Não foi possível carregar os rótulos de vocalizações",
-            type: "danger",
+          Toast.show({
+            type: "error",
+            text1: error instanceof Error ? error.message : "Erro",
+            text2: "Não foi possível carregar os rótulos de vocalizações",
           });
           return;
         } finally {
@@ -194,10 +216,10 @@ export default function HomeScreen() {
 
       setShowVocalizationModal(true);
     } catch (error) {
-      showMessage({
-        message: "Erro",
-        description: "Ocorreu um erro ao preparar para salvar.",
-        type: "danger",
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Ocorreu um erro ao preparar para salvar.",
       });
     } finally {
       setIsLoading(false);
@@ -216,14 +238,18 @@ export default function HomeScreen() {
           grants[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO] !==
           PermissionsAndroid.RESULTS.GRANTED
         ) {
-          showMessage({
-            message: "Permissão Negada",
-            description: "Permissão para gravar áudio não concedida",
-            type: "danger",
+          Toast.show({
+            type: "error",
+            text1: "Permissão Negada",
+            text2: "Permissão para gravar áudio não concedida",
           });
         }
-      } catch (err) {
-        console.warn(err);
+      } catch (error) {
+        Toast.show({
+          type: "error",
+          text1: "Erro ao solicitar permissão",
+          text2: "Erro ao solicitar permissão de gravação de áudio.",
+        });
       }
     }
   };
@@ -245,38 +271,55 @@ export default function HomeScreen() {
     }
 
     timeUpdateListenerRef.current =
-      BackgroundAudioRecorder.addTimeUpdateListener((time: SetStateAction<number>) => {
-        setRecordingTime(time);
-      });
+      BackgroundAudioRecorder.addTimeUpdateListener(
+        (time: SetStateAction<number>) => {
+          setRecordingTime(time);
+        }
+      );
 
     statusChangeListenerRef.current =
-      BackgroundAudioRecorder.addStatusChangeListener((status: { isRecording: boolean; isPaused: boolean; outputFile: string | null; currentTime: SetStateAction<number>; }) => {
-        setIsRecording((prev) => {
-          return status.isRecording;
-        });
-
-        setIsPaused((prev) => {
-          return status.isPaused;
-        });
-
-        if (status.outputFile) {
-          setOutputFile((prev) => {
-            return status.outputFile;
+      BackgroundAudioRecorder.addStatusChangeListener(
+        (status: {
+          isRecording: boolean;
+          isPaused: boolean;
+          outputFile: string | null;
+          currentTime: SetStateAction<number>;
+        }) => {
+          setIsRecording((prev) => {
+            return status.isRecording;
           });
-        }
 
-        if (typeof status.currentTime === "number" && status.currentTime > 0) {
-          setRecordingTime(status.currentTime);
+          setIsPaused((prev) => {
+            return status.isPaused;
+          });
+
+          if (status.outputFile) {
+            setOutputFile((prev) => {
+              return status.outputFile;
+            });
+          }
+
+          if (
+            typeof status.currentTime === "number" &&
+            status.currentTime > 0
+          ) {
+            setRecordingTime(status.currentTime);
+          }
         }
-      });
+      );
 
     recordingCompleteListenerRef.current =
-      BackgroundAudioRecorder.addRecordingCompleteListener((data: { outputFile: SetStateAction<string | null>; duration: SetStateAction<number>; }) => {
-        setOutputFile(data.outputFile);
-        setRecordingTime(data.duration);
-        setIsRecording(false);
-        setIsPaused(false);
-      });
+      BackgroundAudioRecorder.addRecordingCompleteListener(
+        (data: {
+          outputFile: SetStateAction<string | null>;
+          duration: SetStateAction<number>;
+        }) => {
+          setOutputFile(data.outputFile);
+          setRecordingTime(data.duration);
+          setIsRecording(false);
+          setIsPaused(false);
+        }
+      );
 
     BackgroundAudioRecorder.getStatus()
       .then((status) => {
@@ -288,7 +331,11 @@ export default function HomeScreen() {
         }
       })
       .catch((error) => {
-        console.error("Error getting initial status:", error);
+        Toast.show({
+          type: "error",
+          text1: error instanceof Error ? error.message : "Erro",
+          text2: "Erro ao obter status"
+        })
       });
   };
 
@@ -322,88 +369,19 @@ export default function HomeScreen() {
     }
 
     if (isRecording) {
-      showMessage({
-        message: "Gravação em andamento",
-        description: "A gravação continuará em segundo plano.",
+      Toast.show({
         type: "info",
+        text1: "Gravação em andamento",
+        text2: "A gravação continuará em segundo plano.",
       });
     }
   };
 
-  const startRecording = async () => {
-    if (isLoading) return;
-
-    try {
-      setIsLoading(true);
-
-      const status = await BackgroundAudioRecorder.getStatus();
-      if (status.isRecording) {
-        setIsRecording(status.isRecording);
-        setIsPaused(status.isPaused);
-        setRecordingTime(status.currentTime);
-        setOutputFile(status.outputFile);
-        setIsLoading(false);
-        return;
-      }
-
-      await BackgroundAudioRecorder.startRecording(elapsedTimeBeforePause);
-      setIsRecording(true);
-      setIsPaused(false);
-    } catch (error: any) {
-      showMessage({
-        message: error instanceof Error ? error.message : "Erro",
-        description: "Não foi possível iniciar a gravação do áudio",
-        type: "danger",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const pauseRecording = async () => {
-    if (isLoading) return;
-
-    try {
-      setIsLoading(true);
-
-      await BackgroundAudioRecorder.pauseRecording();
-      setIsPaused(true);
-      setElapsedTimeBeforePause(recordingTime);
-    } catch (error) {
-      showMessage({
-        message: error instanceof Error ? error.message : "Erro",
-        description: "Não foi possível pausar a gravação do áudio",
-        type: "danger",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const resumeRecording = async () => {
-    if (isLoading) return;
-
-    try {
-      setIsLoading(true);
-
-      await BackgroundAudioRecorder.resumeRecording();
-      setIsPaused(false);
-    } catch (error) {
-      showMessage({
-        message: error instanceof Error ? error.message : "Erro",
-        description: "Não foi possível retomar a gravação do áudio",
-        type: "danger",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
   const handleAppStateChange = async (nextAppState: any) => {
     if (
       appState.current.match(/inactive|background/) &&
       nextAppState === "active"
     ) {
-
       if (isRecording || recordingTime > 0) {
         try {
           BackgroundAudioRecorder.forceSync();
@@ -415,25 +393,17 @@ export default function HomeScreen() {
           setRecordingTime(status.currentTime);
           setOutputFile(status.outputFile);
         } catch (error) {
-          showMessage({
-            message: "Erro",
-            description: "Erro ao sincronizar após mudança de AppState",
-            type: "danger",
-          })
+          Toast.show({
+            type: "error",
+            text1: error instanceof Error ? error.message : "Erro",
+            text2: "Erro ao sincronizar o estado da gravação.",
+          });
         }
       }
     }
 
     appState.current = nextAppState;
   };
-
-  useEffect(() => {
-    const subscription = AppState.addEventListener(
-      "change",
-      handleAppStateChange
-    );
-    return () => subscription.remove();
-  }, [isRecording, recordingTime]);
 
   const handleDiscard = async () => {
     try {
@@ -451,12 +421,14 @@ export default function HomeScreen() {
             );
           }
         } catch (error) {
-          setShowDiscardModal(false);
-          showMessage({
-            message: "Aviso",
-            description: "Erro ao excluir o arquivo de áudio temporário.",
-            type: "warning",
+          Toast.show({
+            type: "error",
+            text1: "Erro ao excluir arquivo",
+            text2: "Erro ao excluir o arquivo de áudio temporário.",
           });
+          setShowDiscardModal(false);
+          setIsLoading(false);
+          return;
         }
       }
 
@@ -467,11 +439,13 @@ export default function HomeScreen() {
       setIsRecording(false);
       setShowDiscardModal(false);
 
-      showMessage({
-        message: "Gravação descartada",
-        description: "A gravação foi descartada com sucesso.",
-        type: "info",
-      });
+      setTimeout(() => {
+        Toast.show({
+          type: "success",
+          text1: "Gravação descartada",
+          text2: "A gravação foi descartada com sucesso.",
+        });
+      }, 300);
     } catch (error) {
       setOutputFile(null);
       setElapsedTimeBeforePause(0);
@@ -480,12 +454,13 @@ export default function HomeScreen() {
       setIsRecording(false);
       setShowDiscardModal(false);
 
-      showMessage({
-        message: "Aviso",
-        description:
-          "A gravação foi descartada, mas houve um erro ao excluir o arquivo.",
-        type: "warning",
-      });
+      setTimeout(() => {
+        Toast.show({
+          type: "error",
+          text1: "Erro ao descartar gravação",
+          text2: "Erro ao descartar a gravação.",
+        });
+      }, 300);
     } finally {
       setIsLoading(false);
     }
@@ -501,10 +476,10 @@ export default function HomeScreen() {
         setSelectedVocalizationId(vocalizations[0].id);
       }
     } catch (error) {
-      showMessage({
-        message: error instanceof Error ? error.message : "Erro",
-        description: "Não foi possível carregar os rótulos de vocalizações",
-        type: "danger",
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Não foi possível carregar os rótulos de vocalizações",
       });
     } finally {
       setLoadingVocalizations(false);
@@ -546,21 +521,24 @@ export default function HomeScreen() {
 
           setIsLoading(false);
         } catch (error) {
-          console.error("Error getting updated status:", error);
+          Toast.show({
+            type: "error",
+            text1: error instanceof Error ? error.message : "Erro",
+            text2: "Erro ao obter o status da gravação.",
+          });
           setIsLoading(false);
         }
 
         setIsProcessingAction(false);
       }, 500);
     } catch (error) {
-      console.error("Error in recording action:", error);
       setIsLoading(false);
       setIsProcessingAction(false);
 
-      showMessage({
-        message: error instanceof Error ? error.message : "Error",
-        description: "An error occurred while controlling the recording",
-        type: "danger",
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Error",
+        text2: "Erro ao controlar a gravação.",
       });
     }
   };
@@ -571,10 +549,10 @@ export default function HomeScreen() {
 
   const handleSaveAudio = async () => {
     if (!selectedVocalizationId) {
-      showMessage({
-        message: "Rótulo não selecionado",
-        description: "Por favor, selecione um rótulo de vocalização.",
-        type: "warning",
+      Toast.show({
+        type: "error",
+        text1: "Rótulo não selecionado",
+        text2: "Por favor, selecione um rótulo de vocalização.",
       });
       return;
     }
@@ -589,20 +567,20 @@ export default function HomeScreen() {
           setOutputFile(filePath);
         }
       } catch (error) {
-        showMessage({
-          message: "Erro",
-          description: "Erro ao buscar caminho do arquivo de áudio.",
-          type: "danger",
+        Toast.show({
+          type: "error",
+          text1: error instanceof Error ? error.message : "Error",
+          text2: "Erro ao buscar caminho do arquivo de áudio.",
         });
       }
     }
 
     if (!filePath) {
       setIsLoading(false);
-      showMessage({
-        message: "Nenhuma gravação",
-        description: "Não foi encontrada gravação para salvar.",
-        type: "warning",
+      Toast.show({
+        type: "error",
+        text1: "Nenhuma gravação",
+        text2: "Não foi encontrada gravação para salvar.",
       });
       return;
     }
@@ -623,10 +601,10 @@ export default function HomeScreen() {
           );
         }
       } catch (fileCheckError) {
-        showMessage({
-          message: "Erro",
-          description: "Erro ao verificar arquivo de áudio.",
-          type: "danger",
+        Toast.show({
+          type: "error",
+          text1: "Erro",
+          text2: "Erro ao verificar arquivo de áudio.",
         });
         throw fileCheckError;
       }
@@ -669,17 +647,16 @@ export default function HomeScreen() {
       await BackgroundAudioRecorder.resetState();
       router.push("/audios");
 
-      showMessage({
-        message: "Sucesso",
-        description: "Gravação salva com sucesso!",
+      Toast.show({
         type: "success",
+        text1: "Gravação salva",
+        text2: "A gravação foi salva com sucesso.",
       });
     } catch (error) {
-      showMessage({
-        message: error instanceof Error ? error.message : "Erro",
-        description:
-          error instanceof Error ? error.message : "Erro desconhecido",
-        type: "danger",
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Error",
+        text2: "Erro ao salvar a gravação.",
       });
     } finally {
       setIsLoading(false);
@@ -706,10 +683,10 @@ export default function HomeScreen() {
               setOutputFile(status.outputFile);
             }
           } catch (error) {
-            showMessage({
-              message: "Erro",
-              description: "Não foi possível sincronizar o estado da gravação",
-              type: "danger",
+            Toast.show({
+              type: "error",
+              text1: error instanceof Error ? error.message : "Erro",
+              text2: "Erro ao sincronizar o estado da gravação.",
             });
           }
         }
@@ -843,6 +820,7 @@ export default function HomeScreen() {
             </View>
           </View>
         </View>
+        <Toast />
       </Modal>
 
       <ConfirmationModal

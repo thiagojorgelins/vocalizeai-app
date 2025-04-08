@@ -9,9 +9,9 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { showMessage } from "react-native-flash-message";
 
 import JustifiedText from "@/components/JustifiedText";
+import Toast from "react-native-toast-message";
 
 export default function SobreScreen() {
   const vocalizationLabels = [
@@ -51,17 +51,16 @@ export default function SobreScreen() {
     try {
       const textToCopy = title ? `${title}\n\n${text}` : text;
       await Clipboard.setStringAsync(textToCopy);
-      showMessage({
-        message: "Texto copiado para a área de transferência",
+      Toast.show({
+        text1: "Texto copiado para a área de transferência",
         type: "success",
-        duration: 2000,
-      });
+      })
     } catch (error) {
-      showMessage({
-        message: "Erro ao copiar texto",
-        type: "danger",
-        duration: 2000,
-      });
+      Toast.show({
+        text1: error instanceof Error ? error.message : "Error",
+        text2: "Erro ao copiar texto",
+        type: "error",
+      })
     }
   };
 

@@ -14,20 +14,21 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
   ScrollView,
   StyleSheet,
   Text,
   View,
-  Platform,
-  KeyboardAvoidingView,
-  ActivityIndicator,
 } from "react-native";
-import { showMessage } from "react-native-flash-message";
 import * as Animatable from "react-native-animatable";
+import Toast from "react-native-toast-message";
 
 export default function DadosParticipanteScreen() {
   const [idade, setIdade] = useState("");
-  const [qtdPalavras, setQtdPalavras] = useState("Não pronuncia nenhuma palavra");
+  const [qtdPalavras, setQtdPalavras] = useState(
+    "Não pronuncia nenhuma palavra"
+  );
   const [genero, setGenero] = useState("Masculino");
   const [nivelSuporte, setNivelSuporte] = useState("1");
   const [participantId, setParticipantId] = useState<string | null>(null);
@@ -60,12 +61,10 @@ export default function DadosParticipanteScreen() {
         error.response?.data?.detail ||
         error.message ||
         "Erro ao carregar os dados do participante.";
-      showMessage({
-        message: "Erro ao carregar dados",
-        description: errorMessage,
-        type: "danger",
-        duration: 3000,
-        icon: "danger",
+      Toast.show({
+        type: "error",
+        text1: "Erro ao carregar dados",
+        text2: errorMessage,
       });
     } finally {
       setIsLoading(false);
@@ -116,21 +115,17 @@ export default function DadosParticipanteScreen() {
 
       if (participantId) {
         await updateParticipante(participantId, payload);
-        showMessage({
-          message: "Sucesso!",
-          description: "Dados do participante atualizados.",
+        Toast.show({
           type: "success",
-          duration: 3000,
-          icon: "success",
+          text1: "Sucesso!",
+          text2: "Dados do participante atualizados.",
         });
       } else {
         await createParticipante(payload);
-        showMessage({
-          message: "Sucesso!",
-          description: "Participante criado com sucesso!",
+        Toast.show({
           type: "success",
-          duration: 3000,
-          icon: "success",
+          text1: "Sucesso!",
+          text2: "Participante criado com sucesso.",
         });
         router.replace("/usuario/editar-usuario");
       }
@@ -140,12 +135,10 @@ export default function DadosParticipanteScreen() {
         error.response?.data?.detail ||
         error.message ||
         "Erro ao salvar os dados do participante.";
-      showMessage({
-        message: "Erro ao salvar",
-        description: errorMessage,
-        type: "danger",
-        duration: 3000,
-        icon: "danger",
+      Toast.show({
+        type: "error",
+        text1: "Erro ao salvar dados",
+        text2: errorMessage,
       });
     } finally {
       setIsModalLoading(false);
@@ -153,10 +146,7 @@ export default function DadosParticipanteScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      behavior={"height"}
-      style={styles.container}
-    >
+    <KeyboardAvoidingView behavior={"height"} style={styles.container}>
       {isLoading && (
         <View style={styles.loadingOverlay}>
           <Animatable.View

@@ -1,7 +1,11 @@
 import ButtonCustom from "@/components/Button";
 import ConfirmationModal from "@/components/ConfirmationModal";
 import Input from "@/components/Inputs/Input";
-import { confirmRegistration, doLogout, sendConfirmationCode } from "@/services/authService";
+import {
+  confirmRegistration,
+  doLogout,
+  sendConfirmationCode,
+} from "@/services/authService";
 import { getUser, updateUser, validarEmail } from "@/services/usuarioService";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -9,21 +13,21 @@ import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 import * as Animatable from "react-native-animatable";
-import { showMessage } from "react-native-flash-message";
+import Toast from "react-native-toast-message";
 
 export default function EditarUsuarioScreen() {
   const [email, setEmail] = useState("");
   const [nome, setNome] = useState("");
   const [celular, setCelular] = useState("");
   const [isModalVisible, setModalVisible] = useState(false);
-  const [isVerificationModalVisible, setVerificationModalVisible] = useState(false);
+  const [isVerificationModalVisible, setVerificationModalVisible] =
+    useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isVerificationLoading, setVerificationLoading] = useState(false);
   const [emailError, setEmailError] = useState("");
@@ -41,11 +45,10 @@ export default function EditarUsuarioScreen() {
       setNome(userData.nome);
       setCelular(userData.celular);
     } catch (error: any) {
-      showMessage({
-        message: "Não foi possível carregar os dados do usuário.",
-        type: "danger",
-        duration: 3000,
-        icon: "danger",
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Não foi possível carregar os dados do usuário.",
       });
     } finally {
       setIsLoading(false);
@@ -80,24 +83,20 @@ export default function EditarUsuarioScreen() {
   async function handleUpdate() {
     try {
       if (email && !validarEmail(email)) {
-        showMessage({
-          message: "Formato de email inválido.",
-          description: "Por favor, digite um endereço de email válido.",
-          type: "warning",
-          duration: 3000,
-          icon: "warning",
+        Toast.show({
+          type: "error",
+          text1: "Formato de email inválido.",
+          text2: "Por favor, digite um endereço de email válido.",
         });
         setModalVisible(false);
         return;
       }
-      
+
       if (celular && celular.replace(/\D/g, "").length < 10) {
-        showMessage({
-          message: "Celular inválido.",
-          description: "Por favor, digite um número de celular válido.",
-          type: "warning",
-          duration: 3000,
-          icon: "warning",
+        Toast.show({
+          type: "error",
+          text1: "Celular inválido.",
+          text2: "Por favor, digite um número de celular válido.",
         });
         setModalVisible(false);
         return;
@@ -113,7 +112,7 @@ export default function EditarUsuarioScreen() {
       }
 
       const emailFoiAlterado = email !== emailOriginal && email.trim() !== "";
-      
+
       if (!emailFoiAlterado) {
         if (celular !== undefined && celular.trim() !== "") {
           dadosAtualizados.celular = celular;
@@ -126,36 +125,32 @@ export default function EditarUsuarioScreen() {
           setCelular(result.usuario.celular);
         }
 
-        showMessage({
-          message: "Sucesso!",
-          description: result.message,
+        Toast.show({
           type: "success",
-          duration: 3000,
-          icon: "success",
+          text1: "Sucesso!",
+          text2: result.message,
         });
       } else {
         dadosAtualizados.email = email;
-        
+
         if (celular !== undefined && celular.trim() !== "") {
           dadosAtualizados.celular = celular;
         }
-        
+
         const result = await updateUser(dadosAtualizados);
 
         if (result.usuario) {
           setNome(result.usuario.nome);
           setCelular(result.usuario.celular);
         }
-        
+
         if (result.emailAlterado) {
           setVerificationModalVisible(true);
         } else {
-          showMessage({
-            message: "Sucesso!",
-            description: result.message,
+          Toast.show({
             type: "success",
-            duration: 3000,
-            icon: "success",
+            text1: "Sucesso!",
+            text2: result.message,
           });
         }
       }
@@ -164,89 +159,78 @@ export default function EditarUsuarioScreen() {
         error.response?.data?.detail ||
         error.message ||
         "Não foi possível atualizar os dados do usuário.";
-      showMessage({
-        message: "Erro ao atualizar",
-        description: errorMessage,
-        type: "danger",
-        duration: 3000,
-        icon: "danger",
+      Toast.show({
+        type: "error",
+        text1: "Erro",
+        text2: errorMessage,
       });
     } finally {
       setIsLoading(false);
     }
   }
-  
+
   const handleVerifyEmail = async (codigo?: string) => {
     if (!codigo || codigo.trim() === "") {
       setVerificationError(true);
       return;
     }
-    
+
     setVerificationLoading(true);
-    
+
     try {
       await confirmRegistration(email, codigo);
-      
-      showMessage({
-        message: "Sucesso!",
-        description: "Email verificado com sucesso!",
+
+      Toast.show({
         type: "success",
-        duration: 3000,
-        icon: "success",
+        text1: "Sucesso!",
+        text2: "Email verificado com sucesso!",
       });
-      
+
       setVerificationModalVisible(false);
       setEmailOriginal(email);
     } catch (error: any) {
       setVerificationError(true);
-      showMessage({
-        message: "Erro na verificação",
-        description: error.message || "Código de verificação inválido.",
-        type: "danger",
-        duration: 3000,
-        icon: "danger",
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Código de verificação inválido.",
       });
     } finally {
       setVerificationLoading(false);
     }
   };
-  
+
   const handleResendCode = async () => {
     try {
       setVerificationLoading(true);
       await sendConfirmationCode(email);
-      
-      showMessage({
-        message: "Código enviado",
-        description: "Um novo código foi enviado para seu email.",
+
+      Toast.show({
         type: "success",
-        duration: 3000,
-        icon: "success",
+        text1: "Código enviado!",
+        text2: "Um novo código foi enviado para seu email.",
       });
     } catch (error: any) {
-      showMessage({
-        message: "Erro ao enviar código",
-        description: error.message || "Não foi possível enviar o código de verificação.",
-        type: "danger",
-        duration: 3000,
-        icon: "danger",
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Não foi possível enviar o código de verificação.",
       });
     } finally {
       setVerificationLoading(false);
     }
   };
-  
+
   const handleCancelVerification = () => {
     setVerificationModalVisible(false);
-    
-    showMessage({
-      message: "Verificação necessária",
-      description: "Você precisa verificar seu novo email para continuar. Fazendo logout...",
+
+    Toast.show({
       type: "info",
-      duration: 3000,
-      icon: "info",
+      text1: "Verificação necessária",
+      text2:
+        "Você precisará verificar seu novo email para continuar. Fazendo logout...",
     });
-    
+
     setTimeout(() => {
       doLogout();
     }, 3000);
@@ -256,23 +240,19 @@ export default function EditarUsuarioScreen() {
     const emailFoiAlterado = email !== emailOriginal;
 
     if (emailFoiAlterado && !validarEmail(email)) {
-      showMessage({
-        message: "Formato de email inválido.",
-        description: "Por favor, digite um endereço de email válido.",
-        type: "warning",
-        duration: 3000,
-        icon: "warning",
+      Toast.show({
+        type: "error",
+        text1: "Formato de email inválido.",
+        text2: "Por favor, digite um endereço de email válido.",
       });
       return;
     }
 
     if (celular && celular.replace(/\D/g, "").length < 10) {
-      showMessage({
-        message: "Celular inválido.",
-        description: "Por favor, digite um número de celular válido.",
-        type: "warning",
-        duration: 3000,
-        icon: "warning",
+      Toast.show({
+        type: "error",
+        text1: "Celular inválido.",
+        text2: "Por favor, digite um número de celular válido.",
       });
       return;
     }
@@ -281,10 +261,7 @@ export default function EditarUsuarioScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={"height"}
-      style={styles.container}
-    >
+    <KeyboardAvoidingView behavior={"height"} style={styles.container}>
       {isLoading && (
         <View style={styles.loadingOverlay}>
           <Animatable.View
@@ -392,7 +369,7 @@ export default function EditarUsuarioScreen() {
             : "Deseja confirmar a atualização dos dados do usuário?"
         }
       />
-      
+
       {/* Modal de verificação de email */}
       <ConfirmationModal
         visible={isVerificationModalVisible}

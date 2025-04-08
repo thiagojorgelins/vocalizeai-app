@@ -6,7 +6,7 @@ export default {
     slug: "vocalizeai",
     version: "1.0.0",
     orientation: "portrait",
-    icon: "./assets/images/icon.png",
+    icon: "./assets/images/splashscreen_logo.png",
     scheme: "myapp",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
@@ -32,7 +32,7 @@ export default {
     },
     android: {
       adaptiveIcon: {
-        foregroundImage: "./assets/images/adaptive-icon.png",
+        foregroundImage: "./assets/images/splashscreen_logo.png",
         backgroundColor: "#ffffff"
       },
       package: "com.thiagolins.vocalizeai",
@@ -48,7 +48,7 @@ export default {
       usesCleartextTraffic: true,
       foregroundService: {
         name: "Gravação de Áudio",
-        icon: "./assets/images/icon.png",
+        icon: "./assets/images/splashscreen_logo.png",
         notificationTitle: "Gravação em andamento",
         notificationColor: "#FF0000"
       },
@@ -62,7 +62,7 @@ export default {
     web: {
       bundler: "metro",
       output: "static",
-      favicon: "./assets/images/favicon.png"
+      favicon: "./assets/images/splashscreen_logo.png"
     },
 
     plugins: [
@@ -76,7 +76,7 @@ export default {
       [
         "expo-splash-screen",
         {
-          image: "./assets/images/splash-icon.png",
+          image: "./assets/images/splashscreen_logo.png",
           imageWidth: 200,
           resizeMode: "contain",
           backgroundColor: "#ffffff"
@@ -127,7 +127,7 @@ export default {
       [
         "expo-notifications",
         {
-          icon: "./assets/images/icon.png",
+          icon: "./assets/images/splashscreen_logo.png",
           color: "#ffffff",
           androidMode: "default",
           androidCollapsedTitle: "Gravação em andamento"

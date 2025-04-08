@@ -23,7 +23,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { showMessage } from "react-native-flash-message";
+import Toast from "react-native-toast-message";
 
 export default function AudiosScreen() {
   const [recordings, setRecordings] = useState<AudioRecording[]>([]);
@@ -61,11 +61,11 @@ export default function AudiosScreen() {
         soundRef.current = null;
         setPlayingUri(null);
       } catch (error) {
-        showMessage({
-          message: error instanceof Error ? error.message : "Erro",
-          description: "Erro ao parar a reprodução de áudio",
-          type: "danger",
-        });
+        Toast.show({
+          text1: error instanceof Error ? error.message : "Erro",
+          text2: "Erro ao parar a reprodução de áudio",
+          type: "error",
+        })
       }
     }
   };
@@ -86,11 +86,11 @@ export default function AudiosScreen() {
         setRecordings(JSON.parse(storedRecordings));
       }
     } catch (error) {
-      showMessage({
-        message: "Erro",
-        description: "Erro ao buscar gravações",
-        type: "danger",
-      });
+      Toast.show({
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Erro ao carregar gravações",
+        type: "error",
+      })
     } finally {
       setLoadingVocalizations(false);
     }
@@ -106,11 +106,11 @@ export default function AudiosScreen() {
 
   async function handleDeleteAllAudios() {
     if (recordings.length === 0) {
-      showMessage({
-        message: "Informação",
-        description: "Não há áudios para excluir",
+      Toast.show({
+        text1: "Informação",
+        text2: "Não há áudios para excluir",
         type: "info",
-      });
+      })
       setShowConfirmDeleteAllModal(false);
       return;
     }
@@ -122,11 +122,11 @@ export default function AudiosScreen() {
       try {
         await FileOperations.cleanAudioDirectory();
       } catch (error) {
-        showMessage({
-          message: "Erro",
-          description: "Erro ao limpar diretório de áudio",
-          type: "danger",
-        });
+        Toast.show({
+          text1: error instanceof Error ? error.message : "Erro",
+          text2: "Erro ao limpar diretório de áudio",
+          type: "error",
+        })
       }
 
       setRecordings([]);
@@ -134,17 +134,17 @@ export default function AudiosScreen() {
 
       setShowConfirmDeleteAllModal(false);
 
-      showMessage({
-        message: "Sucesso",
-        description: "Todos os áudios foram removidos com sucesso!",
+      Toast.show({
+        text1: "Sucesso",
+        text2: "Todos os áudios foram removidos com sucesso!",
         type: "success",
-      });
+      })
     } catch (error) {
-      showMessage({
-        message: error instanceof Error ? error.message : "Erro",
-        description: "Erro ao excluir todos os áudios",
-        type: "danger",
-      });
+      Toast.show({
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Erro ao excluir todos os áudios",
+        type: "error",
+      })
     } finally {
       setDeletingAll(false);
     }
@@ -194,11 +194,11 @@ export default function AudiosScreen() {
             setPlayingUri(null);
             soundObject.unloadAsync();
             soundRef.current = null;
-            showMessage({
-              message: "Error",
-              description: `Playback error: ${status.error}`,
-              type: "danger",
-            });
+            Toast.show({
+              text1: "Erro",
+              text2: `Erro de reprodução: ${status.error}`,
+              type: "error",
+            })
           }
         });
 
@@ -207,11 +207,11 @@ export default function AudiosScreen() {
         soundRef.current = soundObject;
         setPlayingUri(uri);
       } catch (error) {
-        showMessage({
-          message: "Error",
-          description: "Erro carregando som",
-          type: "danger",
-        });
+        Toast.show({
+          text1: error instanceof Error ? error.message : "Erro",
+          text2: "Erro ao carregar áudio",
+          type: "error",
+        })
         if (error instanceof Error) {
           throw new Error(`Não foi possível carregar áudio: ${error.message}`);
         } else {
@@ -222,11 +222,11 @@ export default function AudiosScreen() {
       }
     } catch (error) {
       setPlayingUri(null);
-      showMessage({
-        message: error instanceof Error ? error.message : "Erro",
-        description: "Ocorreu um erro desconhecido",
-        type: "danger",
-      });
+      Toast.show({
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Erro ao reproduzir áudio",
+        type: "error",
+      })
     }
   }
 
@@ -278,44 +278,44 @@ export default function AudiosScreen() {
                   deleted = true;
                 }
               } catch (fileError) {
-                showMessage({
-                  message: "Erro",
-                  description: "Erro ao excluir arquivo específico",
-                  type: "danger",
-                });
+                Toast.show({
+                  text1: fileError instanceof Error ? fileError.message : "Erro",
+                  text2: "Erro ao excluir arquivo específico",
+                  type: "error",
+                })
               }
             } else {
-              showMessage({
-                message: "Erro",
-                description: "Não foi possível encontrar o arquivo de áudio",
-                type: "danger",
-              });
+              Toast.show({
+                text1: "Erro",
+                text2: "Não foi possível encontrar o arquivo de áudio",
+                type: "error",
+              })
             }
           } catch (error) {
-            showMessage({
-              message: error instanceof Error ? error.message : "Erro",
-              description: "Erro ao excluir o arquivo de áudio",
-              type: "danger",
-            });
+            Toast.show({
+              text1: error instanceof Error ? error.message : "Erro",
+              text2: "Erro ao acessar o diretório de áudio",
+              type: "error",
+            })
           }
         } else {
           try {
             await FileSystem.deleteAsync(recording.uri, { idempotent: true });
             deleted = true;
           } catch (error) {
-            showMessage({
-              message: error instanceof Error ? error.message : "Erro",
-              description: "Erro ao excluir o arquivo de áudio",
-              type: "danger",
-            });
+            Toast.show({
+              text1: error instanceof Error ? error.message : "Erro",
+              text2: "Erro ao excluir o arquivo de áudio",
+              type: "error",
+            })
           }
         }
       } catch (error) {
-        showMessage({
-          message: error instanceof Error ? error.message : "Erro",
-          description: "Erro ao excluir o arquivo de áudio",
-          type: "danger",
-        });
+        Toast.show({
+          text1: error instanceof Error ? error.message : "Erro",
+          text2: "Erro ao acessar o diretório de áudio",
+          type: "error",
+        })
       }
 
       const updated = recordings.filter(
@@ -329,25 +329,24 @@ export default function AudiosScreen() {
       setSelectedRecording(null);
 
       if (deleted) {
-        showMessage({
-          message: "Sucesso",
-          description: "Áudio excluído com sucesso!",
+        Toast.show({
+          text1: "Sucesso",
+          text2: "Áudio excluído com sucesso!",
           type: "success",
-        });
+        })
       } else {
-        showMessage({
-          message: "Atenção",
-          description:
-            "O áudio foi removido da lista, mas pode haver arquivos residuais no dispositivo.",
+        Toast.show({
+          text1: "Atenção",
+          text2: "O áudio foi removido da lista, mas não foi possível excluir o arquivo.",
           type: "info",
-        });
+        })
       }
     } catch (error) {
-      showMessage({
-        message: error instanceof Error ? error.message : "Erro",
-        description: "Erro ao excluir o áudio. Tente novamente.",
-        type: "danger",
-      });
+      Toast.show({
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Erro ao excluir o áudio",
+        type: "error",
+      })
     }
   }
 
@@ -373,20 +372,20 @@ export default function AudiosScreen() {
       await AsyncStorage.setItem("recordings", JSON.stringify(updatedList));
       setRecordings(updatedList);
 
-      showMessage({
-        message: "Sucesso",
-        description: "Vocalização atualizada com sucesso!",
+      Toast.show({
+        text1: "Sucesso",
+        text2: "Vocalização atualizada com sucesso!",
         type: "success",
-      });
+      })
 
       setShowUpdateConfirmModal(false);
       setShowOptionsModal(false);
     } catch (error) {
-      showMessage({
-        message: error instanceof Error ? error.message : "Erro",
-        description: "Erro ao atualizar vocalização",
-        type: "danger",
-      });
+      Toast.show({
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Erro ao atualizar vocalização",
+        type: "error",
+      })
     }
   }
 
@@ -396,11 +395,11 @@ export default function AudiosScreen() {
       const vocalizations = await getVocalizacoes();
       setVocalizations(vocalizations);
     } catch (error) {
-      showMessage({
-        message: error instanceof Error ? error.message : "Erro",
-        description: "Não foi possível carregar as vocalizações",
-        type: "danger",
-      });
+      Toast.show({
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Erro ao carregar vocalizações",
+        type: "error",
+      })
     } finally {
       setLoadingVocalizations(false);
     }
@@ -425,17 +424,17 @@ export default function AudiosScreen() {
         );
         setShowOptionsModal(false);
       }
-      showMessage({
-        message: "Sucesso",
-        description: "Áudio enviado com sucesso!",
+      Toast.show({
+        text1: "Sucesso",
+        text2: "Áudio enviado com sucesso!",
         type: "success",
-      });
+      })
     } catch (error) {
-      showMessage({
-        message: error instanceof Error ? error.message : "Erro",
-        description: "Erro ao enviar áudio",
-        type: "danger",
-      });
+      Toast.show({
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Erro ao enviar áudio",
+        type: "error",
+      })
     } finally {
       setSendingAudio(false);
     }
@@ -456,11 +455,11 @@ export default function AudiosScreen() {
     );
 
     if (pendingRecordings.length === 0) {
-      showMessage({
-        message: "Informação",
-        description: "Não há áudios pendentes para enviar",
+      Toast.show({
+        text1: "Informação",
+        text2: "Não há áudios pendentes para enviar",
         type: "info",
-      });
+      })
       setShowConfirmBatchSendModal(false);
       return;
     }
@@ -491,40 +490,40 @@ export default function AudiosScreen() {
             JSON.stringify(updatedRecordingsList)
           );
         } catch (error) {
-          showMessage({
-            message: "Erro",
-            description: `Erro ao enviar áudio ${recording.uri}`,
-            type: "danger",
-          });
+          Toast.show({
+            text1: error instanceof Error ? error.message : "Erro",
+            text2: `Erro ao enviar áudio ${recording.uri}`,
+            type: "error",
+          })
           errorCount++;
         }
       }
 
       if (successCount > 0 && errorCount === 0) {
-        showMessage({
-          message: "Sucesso",
-          description: `${successCount} áudio(s) enviado(s) com sucesso!`,
+        Toast.show({
+          text1: "Sucesso",
+          text2: "Todos os áudios enviados com sucesso!",
           type: "success",
-        });
+        })
       } else if (successCount > 0 && errorCount > 0) {
-        showMessage({
-          message: "Informação",
-          description: `${successCount} áudio(s) enviado(s) com sucesso e ${errorCount} falha(s)`,
+        Toast.show({
+          text1: "Informação",
+          text2: `${successCount} áudio(s) enviado(s) com sucesso e ${errorCount} falha(s)`,
           type: "info",
-        });
+        })
       } else {
-        showMessage({
-          message: "Erro",
-          description: "Não foi possível enviar os áudios",
-          type: "danger",
-        });
+        Toast.show({
+          text1: "Erro",
+          text2: "Nenhum áudio foi enviado",
+          type: "error",
+        })
       }
     } catch (error) {
-      showMessage({
-        message: error instanceof Error ? error.message : "Erro",
-        description: "Erro ao processar o envio em lote",
-        type: "danger",
-      });
+      Toast.show({
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Erro ao processar o envio em lote",
+        type: "error",
+      })
     } finally {
       setSendingBatch(false);
     }

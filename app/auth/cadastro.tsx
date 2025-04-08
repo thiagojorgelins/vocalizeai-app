@@ -16,13 +16,12 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { showMessage } from "react-native-flash-message";
+import Toast from "react-native-toast-message";
 
 export default function CadastroUsuarioScreen() {
   const [nome, setNome] = useState("");
@@ -90,10 +89,11 @@ export default function CadastroUsuarioScreen() {
     }
 
     if (!termoAceite) {
-      showMessage({
-        message:
+      Toast.show({
+        type: "error",
+        text1: "Erro ao cadastrar usuário",
+        text2:
           "É necessário aceitar os termos de uso e política de privacidade.",
-        type: "warning",
       });
       isValid = false;
     }
@@ -126,21 +126,19 @@ export default function CadastroUsuarioScreen() {
         termoAceite
       );
       if (isRegistered) {
-        showMessage({
-          message: "Cadastro realizado com sucesso!",
-          description: "Verifique seu e-mail para confirmar o cadastro.",
+        Toast.show({
           type: "success",
-          duration: 3000,
+          text1: "Cadastro realizado com sucesso!",
+          text2: "Verifique seu e-mail para confirmar o cadastro.",
         });
 
         setIsModalVisible(true);
       }
-    } catch (error: any) {
-      showMessage({
-        message: "Erro inesperado ao realizar o cadastro.",
-        description: error.message || "Tente novamente mais tarde.",
-        type: "danger",
-        duration: 3000,
+    } catch (error) {
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Erro inesperado",
+        text2: "Tente novamente mais tarde.",
       });
     } finally {
       setIsLoading(false);
@@ -157,10 +155,10 @@ export default function CadastroUsuarioScreen() {
     try {
       await confirmRegistration(email, codigo);
 
-      showMessage({
-        message: "Cadastro confirmado com sucesso!",
+      Toast.show({
         type: "success",
-        duration: 3000,
+        text1: "Cadastro confirmado com sucesso!",
+        text2: "Você já pode acessar o aplicativo.",
       });
 
       setIsModalVisible(false);
@@ -174,10 +172,11 @@ export default function CadastroUsuarioScreen() {
     } catch (error: any) {
       setCodigoError("Código de confirmação inválido.");
 
-      showMessage({
-        message: "Código de confirmação inválido.",
-        type: "danger",
-        duration: 3000,
+      Toast.show({
+        type: "error",
+        text1:
+          error instanceof Error ? error.message : "Erro ao confirmar cadastro",
+        text2: "Código inválido.",
       });
     } finally {
       setIsModalLoading(false);
@@ -189,20 +188,19 @@ export default function CadastroUsuarioScreen() {
       setIsModalLoading(true);
       await sendConfirmationCode(email);
 
-      showMessage({
-        message: "Código reenviado com sucesso!",
-        description: "Verifique seu e-mail.",
+      Toast.show({
         type: "success",
-        duration: 3000,
+        text1: "Código reenviado com sucesso!",
+        text2: "Verifique seu e-mail.",
       });
 
       setCodigoError("");
     } catch (error: any) {
-      showMessage({
-        message: "Erro ao reenviar código.",
-        description: error.message || "Tente novamente mais tarde.",
-        type: "danger",
-        duration: 3000,
+      Toast.show({
+        type: "error",
+        text1:
+          error instanceof Error ? error.message : "Erro ao reenviar código",
+        text2: error.message || "Tente novamente mais tarde.",
       });
     } finally {
       setIsModalLoading(false);
@@ -214,10 +212,7 @@ export default function CadastroUsuarioScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      behavior={"height"}
-      style={styles.container}
-    >
+    <KeyboardAvoidingView behavior={"height"} style={styles.container}>
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}

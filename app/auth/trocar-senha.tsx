@@ -5,15 +5,14 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
   View,
-  ActivityIndicator,
 } from "react-native";
-import { showMessage } from "react-native-flash-message";
+import Toast from "react-native-toast-message";
 
 export default function ChangePasswordScreen() {
   const [senha, setSenha] = useState("");
@@ -71,19 +70,17 @@ export default function ChangePasswordScreen() {
     setIsLoading(true);
     try {
       await resetPassword(email as string, codigoConfirmacao as string, senha);
-      showMessage({
-        message: "Senha redefinida com sucesso!",
-        description: "Você já pode fazer login com sua nova senha.",
+      Toast.show({
         type: "success",
-        duration: 3000,
+        text1: "Senha redefinida com sucesso!",
+        text2: "Você já pode fazer login com sua nova senha.",
       });
       router.push("/auth/login");
     } catch (error: any) {
-      showMessage({
-        message: "Erro ao redefinir senha",
-        description: error.message || "Não foi possível redefinir sua senha.",
-        type: "danger",
-        duration: 3000,
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: error.message || "Não foi possível redefinir sua senha.",
       });
     } finally {
       setIsLoading(false);
@@ -91,10 +88,7 @@ export default function ChangePasswordScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      behavior={"height"}
-      style={styles.container}
-    >
+    <KeyboardAvoidingView behavior={"height"} style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -150,7 +144,12 @@ export default function ChangePasswordScreen() {
                 color="#2196F3"
                 style={styles.mainButton}
                 icon={<MaterialIcons name="check" size={20} color="#FFF" />}
-                disabled={!!senhaError || !!confirmaSenhaError || !senha || !confirmaSenha}
+                disabled={
+                  !!senhaError ||
+                  !!confirmaSenhaError ||
+                  !senha ||
+                  !confirmaSenha
+                }
               />
             )}
 
@@ -193,7 +192,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     margin: 16,
     padding: 20,
-    elevation: 3
+    elevation: 3,
   },
   section: {
     marginBottom: 24,

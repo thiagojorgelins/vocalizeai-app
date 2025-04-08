@@ -2,7 +2,7 @@ import { TokenPayload } from "@/types/TokenPayload";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { jwtDecode } from "jwt-decode";
-import { showMessage } from "react-native-flash-message";
+import Toast from "react-native-toast-message";
 import { api } from "./api";
 
 let isUpdatingToken = false;
@@ -44,16 +44,17 @@ const updateToken = async (): Promise<void> => {
         tokenUpdateRoutine();
       }
     } else {
-      showMessage({
-        description: "Token inválido",
-        message: "Erro ao atualizar a sessão",
-        type: "danger"
+      Toast.show({
+        type: "error",
+        text1: "Erro ao atualizar o token",
+        text2: "O token retornado é inválido.",
       })
     }
   } catch (error: any) {
-    showMessage({
-      message: error.response?.data?.detail || error.message || "Erro ao atualizar o token:",
-      type: "danger"
+    Toast.show({
+      type: "error",
+      text1: error instanceof Error ? error.message : "Erro",
+      text2: "Erro ao atualizar o token.",
     })
     router.push("/auth/login");
   }
@@ -72,7 +73,7 @@ const doLogin = async (email: string, senha: string): Promise<string> => {
         role: payload.role!,
         sub: payload.sub,
       });
-      
+
       try {
         const userResponse = await api.get(`/usuarios/${payload.sub}`, {
           headers: { Authorization: `Bearer ${access_token}` },
@@ -96,10 +97,11 @@ const doLogin = async (email: string, senha: string): Promise<string> => {
     if (error.response?.status === 403 && error.response?.data?.detail === "Usuário não verificado. Verifique seu e-mail para ativar sua conta.") {
       return "unverified";
     }
-    showMessage({
-      message: errorMessage,
-      type: "danger",
-    });
+    Toast.show({
+      type: "error",
+      text1: "Erro ao fazer login",
+      text2: errorMessage,
+    })
     return "error";
   }
 };
@@ -138,44 +140,48 @@ const register = async (
   aceiteTermos: boolean
 ): Promise<boolean> => {
   if (!nome || !celular || !email || !senha || !confirmaSenha) {
-    showMessage({
-      message: "Todos os campos são obrigatórios.",
-      type: "warning",
-    });
+    Toast.show({
+      type: "error",
+      text1: "Erro ao cadastrar usuário",
+      text2: "Todos os campos são obrigatórios.",
+    })
     return false;
   }
 
   if (!aceiteTermos) {
-    showMessage({
-      message: "É necessário aceitar os termos de uso e política de privacidade.",
-      type: "warning",
-    });
+    Toast.show({
+      type: "error",
+      text1: "Erro ao cadastrar usuário",
+      text2: "É necessário aceitar os termos de uso e política de privacidade.",
+    })
     return false;
   }
 
   if (!/^\S+@\S+\.\S+$/.test(email)) {
-    showMessage({
-      message: "Formato do email é inválido.",
-      type: "danger",
-    });
+    Toast.show({
+      type: "error",
+      text1: "Erro ao cadastrar usuário",
+      text2: "Formato do email é inválido.",
+    })
     return false;
   }
 
   if (senha !== confirmaSenha) {
-    showMessage({
-      message: "As senhas não coincidem.",
-      type: "warning",
-    });
+    Toast.show({
+      type: "error",
+      text1: "Erro ao cadastrar usuário",
+      text2: "As senhas não coincidem.",
+    })
     return false;
   }
 
   try {
-    const response = await api.post("/auth/register", { 
-      nome, 
-      email, 
-      celular, 
+    const response = await api.post("/auth/register", {
+      nome,
+      email,
+      celular,
       senha,
-      aceite_termos: aceiteTermos 
+      aceite_termos: aceiteTermos
     });
     if (response.status === 201) {
       return true;
@@ -185,10 +191,11 @@ const register = async (
   } catch (error: any) {
     const errorMessage =
       error.response?.data?.detail || error.message || "Erro ao cadastrar usuário.";
-    showMessage({
-      message: errorMessage,
-      type: "danger",
-    });
+    Toast.show({
+      type: "error",
+      text1: "Erro ao cadastrar usuário",
+      text2: errorMessage,
+    })
     return false;
   }
 };

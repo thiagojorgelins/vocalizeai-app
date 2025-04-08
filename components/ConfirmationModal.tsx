@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import ButtonCustom from "./Button";
 import Input from "./Inputs/Input";
+import Toast from "react-native-toast-message";
 
 export default function ConfirmationModal({
   visible,
@@ -75,7 +76,7 @@ export default function ConfirmationModal({
                 <Input
                   placeholder={input.placeholder}
                   value={inputValue}
-                  style={{ marginBottom: 10, width: "100%" }}
+                  style={{ marginBottom: 24, width: "100%" }}
                   onChangeText={(text) => {
                     setInputValue(text);
                     if (input.onChangeText) {
@@ -128,6 +129,7 @@ export default function ConfirmationModal({
           </TouchableWithoutFeedback>
         </View>
       </TouchableWithoutFeedback>
+      <Toast />
     </Modal>
   );
 }
@@ -162,7 +164,7 @@ const styles = StyleSheet.create({
     width: "100%",
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 10,
+    marginTop: 8,
   },
   loader: {
     marginTop: 20,

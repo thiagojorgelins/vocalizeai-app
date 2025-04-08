@@ -1,5 +1,6 @@
 package com.thiagolins.vocalizeai
 
+import android.app.AlarmManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -12,6 +13,7 @@ import android.media.MediaRecorder
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.SystemClock.elapsedRealtime
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import java.io.File
@@ -50,7 +52,6 @@ class ForegroundAudioRecorderService : Service() {
                         .putExtra("outputFile", outputFile))
                 }
                 "com.thiagolins.vocalizeai.REQUEST_STATUS" -> {
-                    // Responder com o status atual
                     sendBroadcast(Intent("com.thiagolins.vocalizeai.RECORDING_STATUS")
                         .putExtra("isRecording", isRecording)
                         .putExtra("isPaused", isPaused)
@@ -66,7 +67,6 @@ class ForegroundAudioRecorderService : Service() {
             try {
                 sendBroadcast(intent);
                 
-                // Adicionar pequeno atraso entre tentativas
                 Thread.sleep(50);
                 return;
             } catch (e: Exception) {
@@ -155,7 +155,7 @@ class ForegroundAudioRecorderService : Service() {
             .setContentText("Tempo: $formattedTime")
             .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(pendingIntent)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
             .setOngoing(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .build()
@@ -210,9 +210,17 @@ class ForegroundAudioRecorderService : Service() {
             mediaRecorder?.apply {
                 try {
                     try {
-                        setAudioSource(MediaRecorder.AudioSource.MIC)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            setAudioSource(MediaRecorder.AudioSource.UNPROCESSED)
+                        } else {
+                            setAudioSource(MediaRecorder.AudioSource.MIC)
+                        }
                     } catch (e: Exception) {
-                        setAudioSource(MediaRecorder.AudioSource.CAMCORDER)
+                        try {
+                            setAudioSource(MediaRecorder.AudioSource.MIC)
+                        } catch (e2: Exception) {
+                            setAudioSource(MediaRecorder.AudioSource.CAMCORDER)
+                        }
                     }
                     
                     setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
@@ -225,8 +233,14 @@ class ForegroundAudioRecorderService : Service() {
                         setAudioChannels(2)
                     }
                     
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        setPreferredMicrophoneDirection(MediaRecorder.MIC_DIRECTION_UNSPECIFIED)
+                        setOrientationHint(0)
+                    }
+                    
                     prepare()
                     start()
+                    
                 } catch (e: Exception) {
                     Log.e(TAG, "Erro ao configurar MediaRecorder: ${e.message}")
                     throw e
@@ -237,13 +251,24 @@ class ForegroundAudioRecorderService : Service() {
             isPaused = false
             recordingStartTime = System.currentTimeMillis()
 
+            showNotification("Gravação em andamento")
+            
             startTimer()
 
-            sendBroadcast(Intent("com.thiagolins.vocalizeai.RECORDING_STATUS")
-                .putExtra("isRecording", true)
-                .putExtra("isPaused", false)
-                .putExtra("outputFile", outputFile)
-                .putExtra("currentTime", currentRecordingTime))
+            for (i in 0..2) {
+                sendBroadcast(Intent("com.thiagolins.vocalizeai.RECORDING_STATUS")
+                    .putExtra("isRecording", true)
+                    .putExtra("isPaused", false)
+                    .putExtra("outputFile", outputFile)
+                    .putExtra("currentTime", currentRecordingTime))
+                
+                try {
+                    Thread.sleep(50)
+                } catch (e: Exception) {}
+            }
+            
+            acquireWakeLock()
+            
         } catch (e: Exception) {
             Log.e(TAG, "Error starting recording: ${e.message}")
             
@@ -305,8 +330,7 @@ class ForegroundAudioRecorderService : Service() {
                 
                 updateNotification()
 
-                // Envio mais robusto para garantir que a UI receba a atualização
-                for (i in 0..2) { // Tenta 3 vezes
+                for (i in 0..2) {
                     val intent = Intent("com.thiagolins.vocalizeai.RECORDING_STATUS")
                         .putExtra("isRecording", true)
                         .putExtra("isPaused", false)
@@ -316,7 +340,6 @@ class ForegroundAudioRecorderService : Service() {
                     intent.setPackage(packageName)
                     sendBroadcast(intent)
                     
-                    // Pequeno delay para garantir processamento
                     Thread.sleep(50)
                 }
             } else {
@@ -353,14 +376,11 @@ class ForegroundAudioRecorderService : Service() {
                 mediaRecorder = null
             }
             
-            // Short delay to ensure MediaRecorder is completely released
             Thread.sleep(100)
             
-            // Update state immediately to ensure UI responds quickly
             isRecording = false
             isPaused = false
             
-            // Send immediate state update broadcast
             val stateIntent = Intent("com.thiagolins.vocalizeai.RECORDING_STATUS")
                 .putExtra("isRecording", false)
                 .putExtra("isPaused", false)
@@ -392,7 +412,6 @@ class ForegroundAudioRecorderService : Service() {
                             accessibleFile.setReadable(true, false)
                             accessibleFile.setWritable(true, false)
                             
-                            // Multiple attempts to ensure broadcast is received
                             for (i in 0..2) {
                                 try {
                                     val intent = Intent("com.thiagolins.vocalizeai.RECORDING_COMPLETED")
@@ -624,9 +643,19 @@ class ForegroundAudioRecorderService : Service() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        showNotification("Gravação continua em segundo plano")
-        super.onTaskRemoved(rootIntent)
-    }
+      showNotification("Gravação continua em segundo plano")
+      
+      val restartServiceIntent = Intent(applicationContext, ForegroundAudioRecorderService::class.java)
+      restartServiceIntent.setPackage(packageName)
+      
+      val restartServicePendingIntent = PendingIntent.getService(
+          this, 1, restartServiceIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_ONE_SHOT)
+      
+      val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+      alarmManager.set(AlarmManager.ELAPSED_REALTIME, elapsedRealtime() + 1000, restartServicePendingIntent)
+      
+      super.onTaskRemoved(rootIntent)
+  }
 
     override fun onBind(intent: Intent?): IBinder? {
         return null

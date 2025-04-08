@@ -7,15 +7,14 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
   View,
-  ActivityIndicator,
 } from "react-native";
-import { showMessage } from "react-native-flash-message";
+import Toast from "react-native-toast-message";
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState("");
@@ -52,21 +51,17 @@ export default function ForgotPasswordScreen() {
     setIsLoading(true);
     try {
       await requestPasswordReset(email);
-      showMessage({
-        message: "Código enviado com sucesso!",
-        description:
-          "Um código de recuperação foi enviado para o email informado.",
+      Toast.show({
         type: "success",
-        duration: 3000,
+        text1: "Código enviado com sucesso!",
+        text2: "Um código de recuperação foi enviado para o email informado.",
       });
       setIsModalVisible(true);
     } catch (error: any) {
-      showMessage({
-        message: "Erro ao enviar código",
-        description:
-          error.message || "Não foi possível enviar o código de recuperação.",
-        type: "danger",
-        duration: 3000,
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Não foi possível enviar o código de recuperação.",
       });
     } finally {
       setIsLoading(false);
@@ -88,11 +83,10 @@ export default function ForgotPasswordScreen() {
       });
     } catch (error: any) {
       setCodigoError("Código de recuperação inválido");
-      showMessage({
-        message: "Código inválido",
-        description: "O código informado não é válido.",
-        type: "danger",
-        duration: 3000,
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "O código informado não é válido.",
       });
     } finally {
       setIsModalLoading(false);
@@ -103,19 +97,17 @@ export default function ForgotPasswordScreen() {
     setIsModalLoading(true);
     try {
       await requestPasswordReset(email);
-      showMessage({
-        message: "Código reenviado!",
-        description: "Um novo código foi enviado para seu email.",
+      Toast.show({
         type: "success",
-        duration: 3000,
+        text1: "Código reenviado com sucesso!",
+        text2: "Um novo código foi enviado para o email informado.",
       });
       setCodigoError("");
     } catch (error: any) {
-      showMessage({
-        message: "Erro ao reenviar",
-        description: error.message || "Não foi possível reenviar o código.",
-        type: "danger",
-        duration: 3000,
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Não foi possível reenviar o código.",
       });
     } finally {
       setIsModalLoading(false);
@@ -123,10 +115,7 @@ export default function ForgotPasswordScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      behavior={"height"}
-      style={styles.container}
-    >
+    <KeyboardAvoidingView behavior={"height"} style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
