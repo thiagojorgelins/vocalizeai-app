@@ -157,7 +157,8 @@ export default {
       eas: {
         projectId: process.env.PROJECT_ID
       },
-      EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL
+      EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
+      EXPO_PUBLIC_API_KEY: process.env.EXPO_PUBLIC_API_KEY
     }
   }
 };
