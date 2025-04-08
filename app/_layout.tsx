@@ -1,18 +1,41 @@
 import { getExpirationTime, updateToken } from "@/services/authService";
+import MaskedView from "@react-native-masked-view/masked-view";
+import * as Font from "expo-font";
 import { Slot, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
-import FlashMessage, { showMessage } from "react-native-flash-message";
+import FlashMessage from "react-native-flash-message";
+import LinearGradient from "react-native-linear-gradient";
+import Toast from 'react-native-toast-message';
 
 SplashScreen.preventAutoHideAsync();
 
+const fontMap = {
+  Quicksand: require("@/assets/fonts/Quicksand-Regular.ttf"),
+  "Quicksand-Bold": require("@/assets/fonts/Quicksand-Bold.ttf"),
+};
+
 export default function RootLayout() {
   const [isSplashVisible, setIsSplashVisible] = useState(true);
+  const [fontsLoaded, setFontsLoaded] = useState(false);
   const router = useRouter();
+
+  const loadFonts = async () => {
+    try {
+      await Font.loadAsync(fontMap);
+      setFontsLoaded(true);
+      return true;
+    } catch (error) {
+      setFontsLoaded(true);
+      return false;
+    }
+  };
 
   const checkToken = async () => {
     try {
+      await loadFonts();
+
       const now = Date.now();
       const expirationTime = await getExpirationTime();
 
@@ -20,8 +43,8 @@ export default function RootLayout() {
         router.replace("/(tabs)");
       } else {
         await updateToken();
-
         const newExpirationTime = await getExpirationTime();
+
         if (newExpirationTime > now) {
           router.replace("/(tabs)");
         } else {
@@ -29,15 +52,17 @@ export default function RootLayout() {
         }
       }
     } catch (error) {
-      showMessage({
-        message: "Erro ao verificar token",
-        description: "Por favor, faça login novamente",
-        type: "danger",
-      });
+      Toast.show({
+        type: "error",
+        text1: "Erro ao verificar token",
+        text2: "Por favor, faça login novamente",
+      })
       router.replace("/auth/login");
     } finally {
-      setTimeout(() => setIsSplashVisible(false), 1000);
-      SplashScreen.hideAsync();
+      setTimeout(() => {
+        setIsSplashVisible(false);
+        SplashScreen.hideAsync();
+      }, 1500);
     }
   };
 
@@ -49,12 +74,56 @@ export default function RootLayout() {
     <View style={{ flex: 1 }}>
       {isSplashVisible ? (
         <View style={styles.splashContainer}>
-          <Text style={styles.splashText}>VocalizaAI</Text>
-          <ActivityIndicator size="large" color="#0000ff" />
+          <MaskedView
+            style={styles.maskedView}
+            maskElement={
+              <Text
+                style={[
+                  styles.splashText,
+                  fontsLoaded ? { fontFamily: "Quicksand-Bold" } : null,
+                ]}
+              >
+                VocalizeAI
+              </Text>
+            }
+          >
+            <LinearGradient
+              colors={["#2196F3", "#03A9F4"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={{ flex: 1 }}
+            >
+              <Text
+                style={[
+                  styles.splashText,
+                  { opacity: 0 },
+                  fontsLoaded ? { fontFamily: "Quicksand-Bold" } : null,
+                ]}
+              >
+                VocalizeAI
+              </Text>
+            </LinearGradient>
+          </MaskedView>
+
+          <LinearGradient
+            colors={["#2196F3", "transparent"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.underline}
+          />
+
+          <ActivityIndicator
+            style={{ marginTop: 30 }}
+            size="large"
+            color="#2196F3"
+          />
         </View>
       ) : null}
       <Slot />
-      <FlashMessage position="bottom" />
+      <Toast 
+        visibilityTime={3000}
+        position="top"
+      />
     </View>
   );
 }
@@ -71,9 +140,23 @@ const styles = StyleSheet.create({
     backgroundColor: "#F5F5F5",
     zIndex: 1,
   },
+  maskedView: {
+    height: 60,
+    flexDirection: "row",
+  },
   splashText: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 20,
+    fontSize: 48,
+    fontFamily: 'Quicksand-Bold',
+    letterSpacing: 1.2,
+    textAlign: "center",
+    textShadowColor: "rgba(0, 0, 0, 0.1)",
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
+  },
+  underline: {
+    width: "60%",
+    height: 3,
+    marginTop: 8,
+    borderRadius: 2,
   },
 });

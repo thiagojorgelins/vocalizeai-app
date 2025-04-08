@@ -2,11 +2,9 @@ import { Header } from "@/components/Header";
 import { getRole } from "@/services/util";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { StyleSheet } from "react-native";
-import { showMessage } from "react-native-flash-message";
-import { getUser } from "@/services/usuarioService";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import Toast from "react-native-toast-message";
 
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof MaterialIcons>["name"];
@@ -23,9 +21,10 @@ export default function TabLayout() {
         const storedRole = await getRole();
         setRole(storedRole);
       } catch (error) {
-        showMessage({
-          message: "Erro ao buscar a role do AsyncStorage",
-          type: "danger",
+        Toast.show({
+          type: "error",
+          text1: "Erro ao buscar a role do AsyncStorage",
+          text2: "Por favor, faça login novamente",
         })
       }
     };

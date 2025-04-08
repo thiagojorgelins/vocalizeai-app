@@ -14,26 +14,33 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
   ScrollView,
   StyleSheet,
   Text,
   View,
-  Platform,
-  KeyboardAvoidingView,
-  TouchableOpacity,
 } from "react-native";
-import { showMessage } from "react-native-flash-message";
+import * as Animatable from "react-native-animatable";
+import Toast from "react-native-toast-message";
 
 export default function DadosParticipanteScreen() {
   const [idade, setIdade] = useState("");
-  const [qtdPalavras, setQtdPalavras] = useState("");
-  const [genero, setGenero] = useState("");
+  const [qtdPalavras, setQtdPalavras] = useState(
+    "Não pronuncia nenhuma palavra"
+  );
+  const [genero, setGenero] = useState("Masculino");
   const [nivelSuporte, setNivelSuporte] = useState("1");
   const [participantId, setParticipantId] = useState<string | null>(null);
   const [isModalVisible, setModalVisible] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isModalLoading, setIsModalLoading] = useState(false);
+  const [idadeError, setIdadeError] = useState("");
+
   const router = useRouter();
 
   const loadParticipantData = useCallback(async () => {
+    setIsLoading(true);
     try {
       const userData = await getUser();
 
@@ -54,13 +61,13 @@ export default function DadosParticipanteScreen() {
         error.response?.data?.detail ||
         error.message ||
         "Erro ao carregar os dados do participante.";
-      showMessage({
-        message: "Erro ao carregar dados",
-        description: errorMessage,
-        type: "danger",
-        duration: 3000,
-        icon: "danger",
+      Toast.show({
+        type: "error",
+        text1: "Erro ao carregar dados",
+        text2: errorMessage,
       });
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -70,8 +77,35 @@ export default function DadosParticipanteScreen() {
     }, [loadParticipantData])
   );
 
+  const handleIdadeChange = (text: string) => {
+    setIdade(text);
+    validateIdade(text);
+  };
+
+  const validateIdade = (value: string) => {
+    if (!value.trim()) {
+      setIdadeError("A idade é obrigatória");
+      return false;
+    }
+
+    const idadeNum = parseInt(value);
+    if (isNaN(idadeNum) || idadeNum < 1 || idadeNum > 99) {
+      setIdadeError("Idade deve estar entre 1 e 99 anos");
+      return false;
+    }
+
+    setIdadeError("");
+    return true;
+  };
+
   async function handleSave() {
+    if (!validateIdade(idade)) {
+      return;
+    }
+
     try {
+      setIsModalLoading(true);
+
       const payload: ParticipantePayload = {
         idade: parseInt(idade),
         qtd_palavras: qtdPalavras,
@@ -81,21 +115,17 @@ export default function DadosParticipanteScreen() {
 
       if (participantId) {
         await updateParticipante(participantId, payload);
-        showMessage({
-          message: "Sucesso!",
-          description: "Dados do participante atualizados.",
+        Toast.show({
           type: "success",
-          duration: 3000,
-          icon: "success",
+          text1: "Sucesso!",
+          text2: "Dados do participante atualizados.",
         });
       } else {
         await createParticipante(payload);
-        showMessage({
-          message: "Sucesso!",
-          description: "Participante criado com sucesso!",
+        Toast.show({
           type: "success",
-          duration: 3000,
-          icon: "success",
+          text1: "Sucesso!",
+          text2: "Participante criado com sucesso.",
         });
         router.replace("/usuario/editar-usuario");
       }
@@ -105,21 +135,31 @@ export default function DadosParticipanteScreen() {
         error.response?.data?.detail ||
         error.message ||
         "Erro ao salvar os dados do participante.";
-      showMessage({
-        message: "Erro ao salvar",
-        description: errorMessage,
-        type: "danger",
-        duration: 3000,
-        icon: "danger",
+      Toast.show({
+        type: "error",
+        text1: "Erro ao salvar dados",
+        text2: errorMessage,
       });
+    } finally {
+      setIsModalLoading(false);
     }
   }
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.container}
-    >
+    <KeyboardAvoidingView behavior={"height"} style={styles.container}>
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <Animatable.View
+            animation="pulse"
+            easing="ease-out"
+            iterationCount="infinite"
+          >
+            <ActivityIndicator size="large" color="#2196F3" />
+          </Animatable.View>
+          <Text style={styles.loadingText}>Carregando...</Text>
+        </View>
+      )}
+
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
@@ -139,9 +179,12 @@ export default function DadosParticipanteScreen() {
               label="Idade"
               placeholder="Idade do Participante"
               keyboardType="numeric"
+              maxLength={2}
               value={idade}
-              onChangeText={setIdade}
+              onChangeText={handleIdadeChange}
               leftIcon={<MaterialIcons name="cake" size={20} color="#666" />}
+              error={!!idadeError}
+              errorMessage={idadeError}
             />
 
             <Select
@@ -151,7 +194,9 @@ export default function DadosParticipanteScreen() {
               options={[
                 { label: "Masculino", value: "Masculino" },
                 { label: "Feminino", value: "Feminino" },
+                { label: "Outros", value: "Outros" },
               ]}
+              leftIcon={<MaterialIcons name="face" size={20} color="#666" />}
             />
 
             <Select
@@ -162,7 +207,9 @@ export default function DadosParticipanteScreen() {
                 { label: "Nível 1", value: "1" },
                 { label: "Nível 2", value: "2" },
                 { label: "Nível 3", value: "3" },
+                { label: "Não sei informar", value: "0" },
               ]}
+              leftIcon={<MaterialIcons name="star" size={20} color="#666" />}
             />
 
             <Select
@@ -170,11 +217,30 @@ export default function DadosParticipanteScreen() {
               selectedValue={qtdPalavras}
               onValueChange={setQtdPalavras}
               options={[
-                { label: "Nenhuma palavra", value: "Nenhuma palavra" },
-                { label: "Entre 1 - 5", value: "Entre 1 - 5" },
-                { label: "Entre 6 - 10", value: "Entre 6 - 10" },
-                { label: "Entre 11 - 20", value: "Entre 11 - 20" },
+                {
+                  label: "Não pronuncia nenhuma palavra",
+                  value: "Não pronuncia nenhuma palavra",
+                },
+                {
+                  label: "Pronuncia entre 1 e 5 palavras",
+                  value: "Pronuncia entre 1 e 5 palavras",
+                },
+                {
+                  label: "Pronuncia entre 6 e 15 palavras",
+                  value: "Pronuncia entre 6 e 15 palavras",
+                },
+                {
+                  label: "Pronuncia 16 ou mais palavras",
+                  value: "Pronuncia 16 ou mais palavras",
+                },
               ]}
+              leftIcon={
+                <MaterialIcons
+                  name="record-voice-over"
+                  size={20}
+                  color="#666"
+                />
+              }
             />
           </View>
 
@@ -185,19 +251,25 @@ export default function DadosParticipanteScreen() {
               }
               onPress={() => setModalVisible(true)}
               icon={<MaterialIcons name="save" size={20} color="#FFF" />}
+              color="#2196F3"
+              style={styles.mainButton}
+              disabled={!!idadeError || !idade.trim()}
             />
+
             <ButtonCustom
               title="Voltar para Dados do Usuário"
               variant="secondary"
               onPress={() => router.push("/usuario/editar-usuario")}
-              icon={<MaterialIcons name="arrow-back" size={20} color="#FFF" />}
+              icon={<MaterialIcons name="arrow-back" size={20} color="#666" />}
+              disabled={isLoading}
             />
 
             <ButtonCustom
-              title="Sair da Conta"
+              title="Sair do App"
               onPress={doLogout}
               icon={<MaterialIcons name="logout" size={20} color="#D32F2F" />}
               variant="danger"
+              disabled={isLoading}
             />
           </View>
         </View>
@@ -206,10 +278,11 @@ export default function DadosParticipanteScreen() {
       <ConfirmationModal
         visible={isModalVisible}
         onCancel={() => setModalVisible(false)}
-        onConfirm={handleSave}
+        onConfirm={() => handleSave()}
         message={`Deseja confirmar a ${
           participantId ? "atualização" : "criação"
         } dos dados do participante?`}
+        isLoading={isModalLoading}
       />
     </KeyboardAvoidingView>
   );
@@ -219,6 +292,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#F5F5F5",
+  },
+  loadingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(255, 255, 255, 0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1000,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: "#2196F3",
+    fontWeight: "600",
   },
   scrollView: {
     flex: 1,
@@ -239,20 +329,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     margin: 16,
     padding: 20,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: {
-          width: 0,
-          height: 2,
-        },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    elevation: 3,
   },
   section: {
     gap: 16,
@@ -269,6 +346,7 @@ const styles = StyleSheet.create({
   },
   mainButton: {
     height: 48,
+    borderRadius: 24,
   },
   linkButton: {
     flexDirection: "row",

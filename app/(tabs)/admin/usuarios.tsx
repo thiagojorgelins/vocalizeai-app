@@ -1,7 +1,12 @@
 import ButtonCustom from "@/components/Button";
 import ConfirmationModal from "@/components/ConfirmationModal";
 import Input from "@/components/Inputs/Input";
-import { deleteUser, getAllUsers, updateUserAdmin } from "@/services/usuarioService";
+import {
+  deleteUser,
+  getAllUsers,
+  updateUserAdmin,
+  validarEmail,
+} from "@/services/usuarioService";
 import { Usuario } from "@/types/Usuario";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
@@ -10,13 +15,12 @@ import {
   ActivityIndicator,
   FlatList,
   Modal,
-  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
-import { showMessage } from "react-native-flash-message";
+import Toast from "react-native-toast-message";
 
 export default function UsuariosScreen() {
   const [usuarios, setUsuarios] = useState<any[]>([]);
@@ -27,6 +31,28 @@ export default function UsuariosScreen() {
   const [celular, setCelular] = useState("");
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [emailError, setEmailError] = useState("");
+  const [celularError, setCelularError] = useState("");
+
+  const handleEmailChange = (text: string) => {
+    setEmail(text);
+
+    if (text && !validarEmail(text)) {
+      setEmailError("Formato de email inválido.");
+    } else {
+      setEmailError("");
+    }
+  };
+
+  const handleCelularChange = (text: string) => {
+    setCelular(text);
+
+    if (!text || text.length < 11) {
+      setCelularError("Celular inválido");
+    } else {
+      setCelularError("");
+    }
+  };
 
   const fetchUsuarios = useCallback(async () => {
     setIsLoading(true);
@@ -34,11 +60,11 @@ export default function UsuariosScreen() {
       const users = await getAllUsers();
       setUsuarios(users);
     } catch (error: any) {
-      showMessage({
-        message: "Erro",
-        description: error.message || "Não foi possível carregar os usuários",
-        type: "danger",
-      });
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Não foi possível carregar os usuários",
+      })
     } finally {
       setIsLoading(false);
     }
@@ -55,25 +81,48 @@ export default function UsuariosScreen() {
     setNome(usuario.nome || "");
     setEmail(usuario.email || "");
     setCelular(usuario.celular || "");
+    setEmailError("");
+    setCelularError("");
     setShowModal(true);
   };
 
   const validateForm = () => {
+    let isValid = true;
+
     if (!nome.trim()) {
-      showMessage({
-        message: "Erro",
-        description: "O nome é obrigatório",
-        type: "warning",
-      });
-      return false;
+      Toast.show({
+        type: "error",
+        text1: "Erro",
+        text2: "O nome é obrigatório",
+      })
+      isValid = false;
     }
-    return true;
+
+    if (celular && celular.replace(/\D/g, "").length < 10) {
+      setCelularError("Celular inválido");
+      Toast.show({
+        type: "error",
+        text1: "Número de celular inválido",
+      })
+      isValid = false;
+    }
+
+    if (email && !validarEmail(email)) {
+      setEmailError("Formato de email inválido");
+      Toast.show({
+        type: "error",
+        text1: "Formato de email inválido",
+      })
+      isValid = false;
+    }
+
+    return isValid;
   };
 
   const handleSave = async () => {
     if (!selectedUsuario) return;
     if (!validateForm()) return;
-  
+
     setIsLoading(true);
     try {
       const updateData: Usuario = {
@@ -82,23 +131,23 @@ export default function UsuariosScreen() {
         email: selectedUsuario.email,
         celular: celular.trim(),
       };
-  
+
       await updateUserAdmin(updateData);
-  
-      showMessage({
-        message: "Sucesso",
-        description: "Dados do usuário atualizados com sucesso!",
+
+      Toast.show({
         type: "success",
-      });
-  
+        text1: "Sucesso",
+        text2: "Dados do usuário atualizados com sucesso!",
+      })
+
       setShowModal(false);
       await fetchUsuarios();
     } catch (error: any) {
-      showMessage({
-        message: "Erro",
-        description: error.message || "Erro ao atualizar os dados do usuário",
-        type: "danger",
-      });
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Erro ao atualizar os dados do usuário",
+      })
     } finally {
       setIsLoading(false);
     }
@@ -110,20 +159,20 @@ export default function UsuariosScreen() {
     try {
       await deleteUser(selectedUsuario.id);
 
-      showMessage({
-        message: "Sucesso",
-        description: "Usuário deletado com sucesso!",
+      Toast.show({
         type: "success",
-      });
+        text1: "Sucesso",
+        text2: "Usuário deletado com sucesso!",
+      })
 
       setShowConfirmModal(false);
       fetchUsuarios();
     } catch (error: any) {
-      showMessage({
-        message: "Erro",
-        description: "Erro ao deletar o usuário",
-        type: "danger",
-      });
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Erro ao deletar o usuário",
+      })
     }
   };
 
@@ -211,22 +260,34 @@ export default function UsuariosScreen() {
               value={nome}
               onChangeText={setNome}
               editable={!isLoading}
+              maxLength={50}
+              showCharacterCount={true}
             />
             <Input
               label="Email"
+              placeholder="Informe seu email"
               value={email}
-              onChangeText={setEmail}
-              editable={!isLoading}
+              showCharacterCount={true}
+              maxLength={80}
+              onChangeText={handleEmailChange}
               leftIcon={<MaterialIcons name="email" size={20} color="#666" />}
+              keyboardType="email-address"
+              error={!!emailError}
+              errorMessage={emailError}
             />
             <Input
               label="Celular"
-              value={celular}
-              mask="(99) 99999-9999"
-              maxLength={15}
-              onChangeText={setCelular}
+              placeholder="Informe seu número de celular"
               keyboardType="phone-pad"
-              editable={!isLoading}
+              value={celular}
+              maxLength={15}
+              mask="(99) 99999-9999"
+              onChangeText={handleCelularChange}
+              leftIcon={
+                <MaterialIcons name="phone-android" size={20} color="#666" />
+              }
+              error={!!celularError}
+              errorMessage={celularError}
             />
 
             <View style={styles.modalActions}>
@@ -331,17 +392,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     padding: 24,
     gap: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    elevation: 4,
   },
   modalHeader: {
     flexDirection: "row",

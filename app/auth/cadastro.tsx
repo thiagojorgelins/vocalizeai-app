@@ -3,20 +3,25 @@ import ConfirmationModal from "@/components/ConfirmationModal";
 import Input from "@/components/Inputs/Input";
 import InputPassword from "@/components/Inputs/InputPassword";
 import TermsRadioButton from "@/components/TermsRadioButton";
-import { confirmRegistration, doLogin, register } from "@/services/authService";
+import {
+  confirmRegistration,
+  doLogin,
+  register,
+  sendConfirmationCode,
+} from "@/services/authService";
+import { validarEmail } from "@/services/usuarioService";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { showMessage } from "react-native-flash-message";
+import Toast from "react-native-toast-message";
 
 export default function CadastroUsuarioScreen() {
   const [nome, setNome] = useState("");
@@ -26,12 +31,90 @@ export default function CadastroUsuarioScreen() {
   const [confirmaSenha, setConfirmaSenha] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isModalLoading, setIsModalLoading] = useState(false);
   const [codigoConfirmacao, setCodigoConfirmacao] = useState("");
   const [termoAceite, setTermoAceite] = useState(false);
 
+  const [emailError, setEmailError] = useState("");
+  const [nomeError, setNomeError] = useState("");
+  const [celularError, setCelularError] = useState("");
+  const [senhaError, setSenhaError] = useState("");
+  const [confirmaSenhaError, setConfirmaSenhaError] = useState("");
+  const [codigoError, setCodigoError] = useState("");
+
   const router = useRouter();
 
+  const validarCampos = () => {
+    let isValid = true;
+
+    if (!nome.trim()) {
+      setNomeError("Nome é obrigatório");
+      isValid = false;
+    } else {
+      setNomeError("");
+    }
+
+    if (!celular || celular.length < 11) {
+      setCelularError("Celular inválido");
+      isValid = false;
+    } else {
+      setCelularError("");
+    }
+
+    if (!email.trim()) {
+      setEmailError("Email é obrigatório");
+      isValid = false;
+    } else if (!validarEmail(email)) {
+      setEmailError("Formato de email inválido");
+      isValid = false;
+    } else {
+      setEmailError("");
+    }
+
+    if (!senha) {
+      setSenhaError("Senha é obrigatória");
+      isValid = false;
+    } else if (senha.length < 6) {
+      setSenhaError("A senha deve ter no mínimo 6 caracteres");
+      isValid = false;
+    } else {
+      setSenhaError("");
+    }
+
+    if (senha !== confirmaSenha) {
+      setConfirmaSenhaError("As senhas não coincidem");
+      isValid = false;
+    } else {
+      setConfirmaSenhaError("");
+    }
+
+    if (!termoAceite) {
+      Toast.show({
+        type: "error",
+        text1: "Erro ao cadastrar usuário",
+        text2:
+          "É necessário aceitar os termos de uso e política de privacidade.",
+      });
+      isValid = false;
+    }
+
+    return isValid;
+  };
+
+  const handleEmailChange = (text: string) => {
+    setEmail(text);
+    if (text && !validarEmail(text)) {
+      setEmailError("Formato de email inválido");
+    } else {
+      setEmailError("");
+    }
+  };
+
   async function handleRegister() {
+    if (!validarCampos()) {
+      return;
+    }
+
     setIsLoading(true);
     try {
       const isRegistered = await register(
@@ -43,59 +126,100 @@ export default function CadastroUsuarioScreen() {
         termoAceite
       );
       if (isRegistered) {
-        showMessage({
-          message:
-            "Cadastro realizado com sucesso! Verifique seu e-mail para confirmar o cadastro.",
+        Toast.show({
           type: "success",
+          text1: "Cadastro realizado com sucesso!",
+          text2: "Verifique seu e-mail para confirmar o cadastro.",
         });
+
         setIsModalVisible(true);
       }
-    } catch (error: any) {
-      showMessage({
-        message: "Erro inesperado ao realizar o cadastro.",
-        type: "danger",
+    } catch (error) {
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Erro inesperado",
+        text2: "Tente novamente mais tarde.",
       });
     } finally {
       setIsLoading(false);
     }
   }
 
-  async function handleConfirmRegistration(codigoConfirmacao?: string) {
-    setIsLoading(true);
+  async function handleConfirmRegistration(codigo?: string) {
+    if (!codigo) {
+      setCodigoError("Código é obrigatório");
+      return;
+    }
+
+    setIsModalLoading(true);
     try {
-      await confirmRegistration(email, codigoConfirmacao || "");
-      showMessage({
-        message: "Cadastro confirmado com sucesso!",
+      await confirmRegistration(email, codigo);
+
+      Toast.show({
         type: "success",
+        text1: "Cadastro confirmado com sucesso!",
+        text2: "Você já pode acessar o aplicativo.",
       });
+
       setIsModalVisible(false);
-      await doLogin(email, senha);
-      router.push("/auth/cadastro-participante");
+
+      const loginResult = await doLogin(email, senha);
+      if (loginResult === "success") {
+        router.push("/auth/cadastro-participante");
+      } else {
+        router.push("/auth/login");
+      }
     } catch (error: any) {
-      showMessage({
-        message: "Código de confirmação inválido.",
-        type: "danger",
+      setCodigoError("Código de confirmação inválido.");
+
+      Toast.show({
+        type: "error",
+        text1:
+          error instanceof Error ? error.message : "Erro ao confirmar cadastro",
+        text2: "Código inválido.",
       });
     } finally {
-      setIsLoading(false);
+      setIsModalLoading(false);
+    }
+  }
+
+  async function handleResendCode() {
+    try {
+      setIsModalLoading(true);
+      await sendConfirmationCode(email);
+
+      Toast.show({
+        type: "success",
+        text1: "Código reenviado com sucesso!",
+        text2: "Verifique seu e-mail.",
+      });
+
+      setCodigoError("");
+    } catch (error: any) {
+      Toast.show({
+        type: "error",
+        text1:
+          error instanceof Error ? error.message : "Erro ao reenviar código",
+        text2: error.message || "Tente novamente mais tarde.",
+      });
+    } finally {
+      setIsModalLoading(false);
     }
   }
 
   function handleToLogin() {
     router.push("/auth/login");
   }
+
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.container}
-    >
+    <KeyboardAvoidingView behavior={"height"} style={styles.container}>
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
           <MaterialIcons name="app-registration" size={40} color="#2196F3" />
-          <Text style={styles.title}>Cadastro de Usuário</Text>
+          <Text style={styles.title}>Criar Conta de Usuário</Text>
         </View>
 
         <View style={styles.card}>
@@ -105,18 +229,26 @@ export default function CadastroUsuarioScreen() {
             <Input
               label="Email"
               placeholder="Informe seu email"
-              keyboardType="email-address"
               value={email}
-              onChangeText={setEmail}
+              showCharacterCount={true}
+              maxLength={80}
+              onChangeText={handleEmailChange}
               leftIcon={<MaterialIcons name="email" size={20} color="#666" />}
+              keyboardType="email-address"
+              error={!!emailError}
+              errorMessage={emailError}
             />
 
             <Input
-              label="Nome do cuidador"
+              label="Nome do responsável"
               placeholder="Informe seu nome"
+              showCharacterCount={true}
+              maxLength={50}
               value={nome}
               onChangeText={setNome}
               leftIcon={<MaterialIcons name="person" size={20} color="#666" />}
+              error={!!nomeError}
+              errorMessage={nomeError}
             />
 
             <Input
@@ -130,6 +262,8 @@ export default function CadastroUsuarioScreen() {
               leftIcon={
                 <MaterialIcons name="phone-android" size={20} color="#666" />
               }
+              error={!!celularError}
+              errorMessage={celularError}
             />
 
             <InputPassword
@@ -138,6 +272,8 @@ export default function CadastroUsuarioScreen() {
               value={senha}
               onChangeText={setSenha}
               leftIcon={<MaterialIcons name="lock" size={20} color="#666" />}
+              error={!!senhaError}
+              errorMessage={senhaError}
             />
 
             <InputPassword
@@ -148,6 +284,8 @@ export default function CadastroUsuarioScreen() {
               leftIcon={
                 <MaterialIcons name="lock-outline" size={20} color="#666" />
               }
+              error={!!confirmaSenhaError}
+              errorMessage={confirmaSenhaError}
             />
 
             <View style={styles.termsContainer}>
@@ -181,7 +319,8 @@ export default function CadastroUsuarioScreen() {
               title="Já possui cadastro? Fazer login"
               variant="link"
               onPress={handleToLogin}
-              color={'F5F5F5'}
+              color="#2196F3"
+              disabled={isLoading}
             />
           </View>
         </View>
@@ -191,12 +330,18 @@ export default function CadastroUsuarioScreen() {
         visible={isModalVisible}
         onCancel={() => setIsModalVisible(false)}
         onConfirm={handleConfirmRegistration}
+        onResend={handleResendCode}
+        showResendButton={true}
         message="Digite o código de confirmação enviado para o seu e-mail."
         input={{
           placeholder: "Código de confirmação",
           value: codigoConfirmacao,
           onChangeText: setCodigoConfirmacao,
+          keyboardType: "numeric",
         }}
+        error={!!codigoError}
+        errorMessage={codigoError}
+        isLoading={isModalLoading}
       />
     </KeyboardAvoidingView>
   );

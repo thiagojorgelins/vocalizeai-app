@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { Text, TextInput, TouchableOpacity, View } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { styles } from "./style";
+import * as Animatable from 'react-native-animatable';
 
 export default function InputPassword({
   placeholder,
@@ -10,13 +11,23 @@ export default function InputPassword({
   label,
   onChangeText,
   style,
+  leftIcon,
+  error,
+  errorMessage
 }: InputProps) {
   const [hidePass, setHidePass] = useState(true);
+
+  const passwordContainerStyle = [
+    styles.passwordContainer,
+    style,
+    error ? styles.inputError : null
+  ];
 
   return (
     <>
       <Text style={styles.label}>{label}</Text>
-      <View style={[styles.passwordContainer, style]}>
+      <View style={passwordContainerStyle}>
+        {leftIcon && <View style={styles.iconContainer}>{leftIcon}</View>}
         <TextInput
           placeholder={placeholder}
           placeholderTextColor="#878383"
@@ -36,6 +47,15 @@ export default function InputPassword({
           )}
         </TouchableOpacity>
       </View>
+      {error && errorMessage && (
+        <Animatable.Text 
+          animation="shake" 
+          duration={500}
+          style={styles.errorText}
+        >
+          {errorMessage}
+        </Animatable.Text>
+      )}
     </>
   );
 }

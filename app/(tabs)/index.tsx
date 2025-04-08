@@ -1,36 +1,40 @@
 import ButtonCustom from "@/components/Button";
 import ConfirmationModal from "@/components/ConfirmationModal";
-import Select from "@/components/Select";
+import VocalizationSelect from "@/components/VocalizationSelect";
 import { getVocalizacoes } from "@/services/vocalizacoesService";
 import { Vocalizacao } from "@/types/Vocalizacao";
+import BackgroundAudioRecorder from "@/utils/BackgroundAudioRecorder";
+import FileOperations from "@/utils/FileOperations";
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from "expo-av";
 import * as FileSystem from "expo-file-system";
-import * as Notifications from "expo-notifications";
-import { useRouter } from "expo-router";
-import { FFmpegKit } from "ffmpeg-kit-react-native";
-import { useEffect, useRef, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import {
+  SetStateAction,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   AppState,
   Modal,
+  PermissionsAndroid,
   Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import BackgroundTimer from "react-native-background-timer";
-import { showMessage } from "react-native-flash-message";
-import translateVocalization from "@/utils/TranslateVocalization";
+import Toast from "react-native-toast-message";
 
 export default function HomeScreen() {
   const router = useRouter();
   const appState = useRef(AppState.currentState);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
-  const [recordingTime, setRecordingTime] = useState(0);
+  const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
   const [showDiscardModal, setShowDiscardModal] = useState(false);
   const [showVocalizationModal, setShowVocalizationModal] = useState(false);
   const [vocalizations, setVocalizations] = useState<Vocalizacao[]>([]);
@@ -38,12 +42,14 @@ export default function HomeScreen() {
     number | null
   >(null);
   const [loadingVocalizations, setLoadingVocalizations] = useState(false);
-  const [recordingSegments, setRecordingSegments] = useState<string[]>([]);
+  const [outputFile, setOutputFile] = useState<string | null>(null);
   const [elapsedTimeBeforePause, setElapsedTimeBeforePause] = useState(0);
-  const [displayTime, setDisplayTime] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isProcessingAction, setIsProcessingAction] = useState(false);
 
-  const startTimeRef = useRef<number | null>(null);
-  const notificationRef = useRef<string | null>(null);
+  const timeUpdateListenerRef = useRef<Function | null>(null);
+  const statusChangeListenerRef = useRef<Function | null>(null);
+  const recordingCompleteListenerRef = useRef<Function | null>(null);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -56,7 +62,7 @@ export default function HomeScreen() {
   useEffect(() => {
     const setup = async () => {
       await setupApp();
-      await checkExistingRecording();
+      setupRecordingListeners();
     };
 
     setup();
@@ -65,136 +71,278 @@ export default function HomeScreen() {
     };
   }, []);
 
-  const checkExistingRecording = async () => {
-    try {
-      const startTimeStr = await AsyncStorage.getItem("recordingStartTime");
-      const isRecording = await AsyncStorage.getItem("isRecording");
-      const savedElapsedTime = await AsyncStorage.getItem(
-        "elapsedTimeBeforePause"
-      );
+  useEffect(() => {
+    if (Platform.OS === "android") {
+      const syncInterval = setInterval(async () => {
+        if (isRecording) {
+          try {
+            const status = await BackgroundAudioRecorder.getStatus();
+            setIsRecording(status.isRecording);
+            setIsPaused(status.isPaused);
+          } catch (error) {
+            Toast.show({
+              type: "error",
+              text1: "Erro ao sincronizar estado",
+              text2: "Erro ao sincronizar o estado da gravação.",
+            })
+          }
+        }
+      }, 1000);
 
-      if (startTimeStr && isRecording === "true") {
-        const startTime = parseInt(startTimeStr);
-        startTimeRef.current = startTime;
-
-        const elapsedTime = savedElapsedTime ? parseInt(savedElapsedTime) : 0;
-        setElapsedTimeBeforePause(elapsedTime);
-
-        const currentTime = Math.floor((Date.now() - startTime) / 1000);
-        setDisplayTime(currentTime);
-        setRecordingTime(currentTime);
-
-        startTimer();
-      }
-    } catch (error) {
-      showMessage({
-        message: "Erro",
-        description: "Não foi possível verificar a gravação existente",
-        type: "danger",
-      });
+      return () => clearInterval(syncInterval);
     }
-  };
+
+    const validateStateConsistency = async () => {
+      if (!isRecording && recordingTime > 0) {
+        try {
+          const status = await BackgroundAudioRecorder.getStatus();
+          setIsRecording(status.isRecording);
+          setIsPaused(status.isPaused);
+
+          if (!status.isRecording) {
+            setRecordingTime(0);
+            setElapsedTimeBeforePause(0);
+            setOutputFile(null);
+          }
+        } catch (error) {
+          Toast.show({
+            type: "error",
+            text1: "Erro ao validar consistência",
+            text2: "Erro ao validar a consistência do estado da gravação.",
+          });
+        }
+      }
+    };
+
+    const consistencyInterval = setInterval(validateStateConsistency, 2000);
+    return () => clearInterval(consistencyInterval);
+  }, [isRecording, isPaused]);
+
+  useEffect(() => {
+    const syncState = async () => {
+      try {
+        const status = await BackgroundAudioRecorder.getStatus();
+
+        if (
+          status.isRecording !== isRecording ||
+          status.isPaused !== isPaused
+        ) {
+          setIsRecording(status.isRecording);
+          setIsPaused(status.isPaused);
+          setRecordingTime(status.currentTime || 0);
+          if (status.outputFile) {
+            setOutputFile(status.outputFile);
+          }
+        }
+      } catch (error) {
+        Toast.show({
+          type: "error",
+          text1: "Erro ao sincronizar estado",
+          text2: "Erro ao sincronizar o estado da gravação.",
+        });
+      }
+    };
+
+    syncState();
+
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === "active"
+      ) {
+        syncState();
+      }
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener(
+      "change",
+      handleAppStateChange
+    );
+    return () => subscription.remove();
+  }, [isRecording, recordingTime]);
 
   const setupApp = async () => {
-    await setupAudioMode();
-    await setupNotifications();
+    await requestPermissions();
     setupAppStateListener();
   };
 
-  const setupAudioMode = async () => {
-    try {
-      const { granted } = await Audio.requestPermissionsAsync();
-      if (granted) {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          staysActiveInBackground: true,
-          interruptionModeIOS: InterruptionModeIOS.DoNotMix,
-          playsInSilentModeIOS: true,
-          shouldDuckAndroid: true,
-          interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
-          playThroughEarpieceAndroid: false,
-        });
-      }
-    } catch (error) {
-      showMessage({
-        message: "Erro",
-        description: "Não foi possível configurar o modo de áudio",
-        type: "danger",
-      });
-    }
-  };
+  const handleSaveButtonPress = async () => {
+    if (isLoading) return;
 
-  const setupNotifications = async () => {
-    try {
-      const { status, granted } = await Notifications.requestPermissionsAsync();
+    setIsLoading(true);
 
-      if (status === "denied") {
-        showMessage({
-          message: "Permissão Negada",
-          description:
-            "As notificações foram desativadas. Por favor, ative nas configurações do dispositivo.",
-          type: "warning",
+    try {
+      const filePath = await BackgroundAudioRecorder.getOutputFilePath();
+
+      if (!filePath) {
+        Toast.show({
+          type: "error",
+          text1: "Nenhuma gravação",
+          text2: "Não foi encontrada gravação para salvar.",
         });
         return;
       }
 
-      if (granted) {
-        if (Platform.OS === "android") {
-          await Notifications.setNotificationChannelAsync("recording", {
-            name: "Gravação",
-            importance: Notifications.AndroidImportance.HIGH,
-            lockscreenVisibility:
-              Notifications.AndroidNotificationVisibility.PUBLIC,
-            enableVibrate: false,
-            enableLights: false,
-            showBadge: false,
-            sound: null,
+      setOutputFile(filePath);
+
+      if (vocalizations.length === 0) {
+        fetchVocalizations();
+        setLoadingVocalizations(true);
+        try {
+          const vocs = await getVocalizacoes();
+          setVocalizations(vocs);
+
+          if (!selectedVocalizationId && vocs.length > 0) {
+            setSelectedVocalizationId(vocs[0].id);
+          }
+        } catch (error) {
+          Toast.show({
+            type: "error",
+            text1: error instanceof Error ? error.message : "Erro",
+            text2: "Não foi possível carregar os rótulos de vocalizações",
+          });
+          return;
+        } finally {
+          setLoadingVocalizations(false);
+        }
+      }
+
+      setShowVocalizationModal(true);
+    } catch (error) {
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Ocorreu um erro ao preparar para salvar.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const requestPermissions = async () => {
+    if (Platform.OS === "android") {
+      try {
+        const grants = await PermissionsAndroid.requestMultiple([
+          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+        ]);
+
+        if (
+          grants[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO] !==
+          PermissionsAndroid.RESULTS.GRANTED
+        ) {
+          Toast.show({
+            type: "error",
+            text1: "Permissão Negada",
+            text2: "Permissão para gravar áudio não concedida",
           });
         }
-
-        await Notifications.setNotificationHandler({
-          handleNotification: async () => ({
-            shouldShowAlert: true,
-            shouldPlaySound: false,
-            shouldSetBadge: false,
-            shouldVibrate: false,
-            priority: Notifications.AndroidNotificationPriority.MAX,
-          }),
-        });
-      } else {
-        showMessage({
-          message: "Notificações Desativadas",
-          description:
-            "Algumas funcionalidades podem ser limitadas sem permissão de notificação.",
-          type: "warning",
+      } catch (error) {
+        Toast.show({
+          type: "error",
+          text1: "Erro ao solicitar permissão",
+          text2: "Erro ao solicitar permissão de gravação de áudio.",
         });
       }
-    } catch (error) {
-      showMessage({
-        message: "Erro",
-        description: "Não foi possível configurar as notificações",
-        type: "danger",
-      });
     }
+  };
+
+  const setupRecordingListeners = () => {
+    if (timeUpdateListenerRef.current) {
+      timeUpdateListenerRef.current();
+      timeUpdateListenerRef.current = null;
+    }
+
+    if (statusChangeListenerRef.current) {
+      statusChangeListenerRef.current();
+      statusChangeListenerRef.current = null;
+    }
+
+    if (recordingCompleteListenerRef.current) {
+      recordingCompleteListenerRef.current();
+      recordingCompleteListenerRef.current = null;
+    }
+
+    timeUpdateListenerRef.current =
+      BackgroundAudioRecorder.addTimeUpdateListener(
+        (time: SetStateAction<number>) => {
+          setRecordingTime(time);
+        }
+      );
+
+    statusChangeListenerRef.current =
+      BackgroundAudioRecorder.addStatusChangeListener(
+        (status: {
+          isRecording: boolean;
+          isPaused: boolean;
+          outputFile: string | null;
+          currentTime: SetStateAction<number>;
+        }) => {
+          setIsRecording((prev) => {
+            return status.isRecording;
+          });
+
+          setIsPaused((prev) => {
+            return status.isPaused;
+          });
+
+          if (status.outputFile) {
+            setOutputFile((prev) => {
+              return status.outputFile;
+            });
+          }
+
+          if (
+            typeof status.currentTime === "number" &&
+            status.currentTime > 0
+          ) {
+            setRecordingTime(status.currentTime);
+          }
+        }
+      );
+
+    recordingCompleteListenerRef.current =
+      BackgroundAudioRecorder.addRecordingCompleteListener(
+        (data: {
+          outputFile: SetStateAction<string | null>;
+          duration: SetStateAction<number>;
+        }) => {
+          setOutputFile(data.outputFile);
+          setRecordingTime(data.duration);
+          setIsRecording(false);
+          setIsPaused(false);
+        }
+      );
+
+    BackgroundAudioRecorder.getStatus()
+      .then((status) => {
+        setIsRecording(status.isRecording);
+        setIsPaused(status.isPaused);
+        setRecordingTime(status.currentTime || 0);
+        if (status.outputFile) {
+          setOutputFile(status.outputFile);
+        }
+      })
+      .catch((error) => {
+        Toast.show({
+          type: "error",
+          text1: error instanceof Error ? error.message : "Erro",
+          text2: "Erro ao obter status"
+        })
+      });
   };
 
   const setupAppStateListener = () => {
     const subscription = AppState.addEventListener(
       "change",
       async (nextAppState) => {
-        if (
-          recording &&
-          appState.current.match(/inactive|background/) &&
-          nextAppState === "active"
-        ) {
-          if (startTimeRef.current) {
-            const elapsedSeconds = Math.floor(
-              (Date.now() - startTimeRef.current) / 1000
-            );
-            setRecordingTime(elapsedSeconds);
-            updateNotification(elapsedSeconds);
-          }
-        }
         appState.current = nextAppState;
       }
     );
@@ -204,264 +352,117 @@ export default function HomeScreen() {
     };
   };
 
-  const startTimer = async () => {
-    BackgroundTimer.stopBackgroundTimer();
-
-    await AsyncStorage.setItem(
-      "recordingStartTime",
-      startTimeRef.current!.toString()
-    );
-    await AsyncStorage.setItem("isRecording", "true");
-    await AsyncStorage.setItem(
-      "elapsedTimeBeforePause",
-      elapsedTimeBeforePause.toString()
-    );
-
-    BackgroundTimer.runBackgroundTimer(() => {
-      if (startTimeRef.current) {
-        const currentTime = Math.floor(
-          (Date.now() - startTimeRef.current) / 1000
-        );
-        const totalTime = currentTime;
-        setDisplayTime(totalTime);
-        setRecordingTime(totalTime);
-        updateNotification(totalTime);
-      }
-    }, 1000);
-  };
-
-  const stopTimer = async () => {
-    BackgroundTimer.stopBackgroundTimer();
-
-    startTimeRef.current = null;
-
-    await AsyncStorage.removeItem("recordingStartTime");
-    await AsyncStorage.removeItem("isRecording");
-
-    if (notificationRef.current) {
-      await Notifications.dismissNotificationAsync(notificationRef.current);
-      notificationRef.current = null;
-      await AsyncStorage.removeItem("currentNotificationId");
+  const cleanup = () => {
+    if (timeUpdateListenerRef.current) {
+      (timeUpdateListenerRef.current as Function)();
+      timeUpdateListenerRef.current = null;
     }
-  };
 
-  const updateNotification = async (time: number = recordingTime) => {
-    try {
-      if (!notificationRef.current) {
-        const identifier = await Notifications.scheduleNotificationAsync({
-          content: {
-            title: "Gravação em andamento",
-            body: `Tempo: ${formatTime(time)}`,
-            priority: Platform.OS === "android" ? "max" : undefined,
-            sound: false,
-            sticky: true,
-          },
-          trigger: null,
-        });
-        notificationRef.current = identifier;
-        await AsyncStorage.setItem("currentNotificationId", identifier);
-      } else {
-        await Notifications.scheduleNotificationAsync({
-          identifier: notificationRef.current,
-          content: {
-            title: "Gravação em andamento",
-            body: `Tempo: ${formatTime(time)}`,
-            data: { type: "recording" },
-            priority: Platform.OS === "android" ? "max" : undefined,
-            sound: false,
-            sticky: true,
-          },
-          trigger: null,
-        });
-      }
-    } catch (error) {
-      showMessage({
-        message: "Erro",
-        description: "Não foi possível atualizar a notificação",
-        type: "danger",
+    if (statusChangeListenerRef.current) {
+      (statusChangeListenerRef.current as Function)();
+      statusChangeListenerRef.current = null;
+    }
+
+    if (recordingCompleteListenerRef.current) {
+      (recordingCompleteListenerRef.current as Function)();
+      recordingCompleteListenerRef.current = null;
+    }
+
+    if (isRecording) {
+      Toast.show({
+        type: "info",
+        text1: "Gravação em andamento",
+        text2: "A gravação continuará em segundo plano.",
       });
     }
   };
 
-  const cleanup = async () => {
-    if (recording) {
-      await stopRecording();
-    }
-    if (notificationRef.current) {
-      await Notifications.dismissNotificationAsync(notificationRef.current);
-      notificationRef.current = null;
-    }
-    stopTimer();
-    BackgroundTimer.stopBackgroundTimer();
-  };
+  const handleAppStateChange = async (nextAppState: any) => {
+    if (
+      appState.current.match(/inactive|background/) &&
+      nextAppState === "active"
+    ) {
+      if (isRecording || recordingTime > 0) {
+        try {
+          BackgroundAudioRecorder.forceSync();
 
-  useEffect(() => {
-    return () => {
-      BackgroundTimer.stopBackgroundTimer();
-    };
-  }, []);
+          const status = await BackgroundAudioRecorder.getStatus();
 
-  const startRecording = async () => {
-    try {
-      const { granted } = await Audio.getPermissionsAsync();
-      if (!granted) {
-        showMessage({
-          message: "Permissão Negada",
-          description: "Não há permissão para gravar áudio",
-          type: "danger",
-        });
-        return;
-      }
-
-      const newRecording = new Audio.Recording();
-      await newRecording.prepareToRecordAsync({
-        isMeteringEnabled: true,
-        android: {
-          extension: ".m4a",
-          outputFormat: Audio.AndroidOutputFormat.MPEG_4,
-          audioEncoder: Audio.AndroidAudioEncoder.AAC,
-          sampleRate: 44100,
-          numberOfChannels: 2,
-          bitRate: 128000,
-        },
-        ios: {
-          extension: ".m4a",
-          outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
-          audioQuality: Audio.IOSAudioQuality.HIGH,
-          sampleRate: 44100,
-          numberOfChannels: 2,
-          bitRate: 128000,
-          linearPCMBitDepth: 16,
-          linearPCMIsBigEndian: false,
-          linearPCMIsFloat: false,
-        },
-        web: {
-          mimeType: undefined,
-          bitsPerSecond: undefined,
-        },
-      });
-
-      await newRecording.startAsync();
-      setRecording(newRecording);
-      setIsPaused(false);
-
-      startTimeRef.current = Date.now() - elapsedTimeBeforePause * 1000;
-      startTimer();
-      updateNotification(elapsedTimeBeforePause);
-    } catch (error) {
-      showMessage({
-        message: "Erro ao gravar",
-        description: "Não foi possível iniciar a gravação do áudio",
-        type: "danger",
-      });
-    }
-  };
-
-  const stopRecording = async () => {
-    try {
-      if (recording) {
-        await recording.stopAndUnloadAsync();
-        const uri = recording.getURI();
-        if (uri) {
-          setRecordingSegments((prev) => [...prev, uri]);
-          setElapsedTimeBeforePause(displayTime);
-        }
-        setRecording(null);
-        stopTimer();
-        setIsPaused(true);
-
-        if (notificationRef.current) {
-          await Notifications.dismissNotificationAsync(notificationRef.current);
-          notificationRef.current = null;
+          setIsRecording(status.isRecording);
+          setIsPaused(status.isPaused);
+          setRecordingTime(status.currentTime);
+          setOutputFile(status.outputFile);
+        } catch (error) {
+          Toast.show({
+            type: "error",
+            text1: error instanceof Error ? error.message : "Erro",
+            text2: "Erro ao sincronizar o estado da gravação.",
+          });
         }
       }
-    } catch (error) {
-      showMessage({
-        message: "Erro ao pausar",
-        description: "Não foi possível parar a gravação do áudio",
-        type: "danger",
-      });
     }
+
+    appState.current = nextAppState;
   };
 
   const handleDiscard = async () => {
-    for (const uri of recordingSegments) {
-      try {
-        await FileSystem.deleteAsync(uri);
-      } catch (error) {
-        showMessage({
-          message: "Erro",
-          description: "Não foi possível descartar a gravação",
-          type: "danger",
-        });
-      }
-    }
-
-    setRecordingSegments([]);
-    setElapsedTimeBeforePause(0);
-    setDisplayTime(0);
-    setRecordingTime(0);
-    setIsPaused(false);
-    setShowDiscardModal(false);
-  };
-
-  const concatenateAudioSegments = async () => {
-    if (recordingSegments.length === 0) return null;
-    if (recordingSegments.length === 1) return recordingSegments[0];
-
     try {
-      const tempDirectory = `${FileSystem.cacheDirectory}temp_audio/`;
-      await FileSystem.makeDirectoryAsync(tempDirectory, {
-        intermediates: true,
-      });
+      setIsLoading(true);
 
-      const finalPath = `${tempDirectory}final_recording_${Date.now()}.m4a`;
-      const fileList = `${tempDirectory}filelist.txt`;
+      await BackgroundAudioRecorder.forceStopService();
 
-      const fileListContent = recordingSegments
-        .map((uri) => {
-          const cleanUri = uri.replace("file://", "");
-          return `file '${cleanUri}'`;
-        })
-        .join("\n");
+      if (outputFile) {
+        try {
+          const deleted = await FileOperations.deleteFile(outputFile);
 
-      await FileSystem.writeAsStringAsync(fileList, fileListContent);
-
-      const command = `-f concat -safe 0 -i ${fileList} -c copy ${finalPath}`;
-
-      const session = await FFmpegKit.execute(command);
-      const returnCode = await session.getReturnCode();
-
-      await FileSystem.deleteAsync(fileList);
-
-      if (returnCode.isValueSuccess()) {
-        for (const uri of recordingSegments) {
-          try {
-            await FileSystem.deleteAsync(uri);
-          } catch (error) {
-            showMessage({
-              message: "Erro",
-              description: "Não foi possível deletar o segmento de áudio",
-              type: "danger",
-            });
+          if (!deleted) {
+            throw new Error(
+              `Não foi possível excluir o arquivo: ${outputFile}`
+            );
           }
+        } catch (error) {
+          Toast.show({
+            type: "error",
+            text1: "Erro ao excluir arquivo",
+            text2: "Erro ao excluir o arquivo de áudio temporário.",
+          });
+          setShowDiscardModal(false);
+          setIsLoading(false);
+          return;
         }
-        return finalPath;
-      } else {
-        showMessage({
-          message: "Erro",
-          description: "Falha ao juntar os segmentos de áudio",
-          type: "danger",
-        });
-        return recordingSegments[0];
       }
+
+      setOutputFile(null);
+      setElapsedTimeBeforePause(0);
+      setRecordingTime(0);
+      setIsPaused(false);
+      setIsRecording(false);
+      setShowDiscardModal(false);
+
+      setTimeout(() => {
+        Toast.show({
+          type: "success",
+          text1: "Gravação descartada",
+          text2: "A gravação foi descartada com sucesso.",
+        });
+      }, 300);
     } catch (error) {
-      showMessage({
-        message: "Erro",
-        description: "Não foi possível juntar os segmentos de áudio",
-        type: "danger",
-      });
-      return recordingSegments[0];
+      setOutputFile(null);
+      setElapsedTimeBeforePause(0);
+      setRecordingTime(0);
+      setIsPaused(false);
+      setIsRecording(false);
+      setShowDiscardModal(false);
+
+      setTimeout(() => {
+        Toast.show({
+          type: "error",
+          text1: "Erro ao descartar gravação",
+          text2: "Erro ao descartar a gravação.",
+        });
+      }, 300);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -474,22 +475,72 @@ export default function HomeScreen() {
       if (!selectedVocalizationId && vocalizations.length > 0) {
         setSelectedVocalizationId(vocalizations[0].id);
       }
-    } catch (error: any) {
-      showMessage({
-        message: "Erro",
-        description: "Não foi possível carregar os rótulos de vocalizações",
-        type: "danger",
+    } catch (error) {
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Não foi possível carregar os rótulos de vocalizações",
       });
     } finally {
       setLoadingVocalizations(false);
     }
   }
 
-  const openVocalizationModal = async () => {
-    if (vocalizations.length === 0) {
-      await fetchVocalizations();
+  const handleRecordPress = async () => {
+    if (isLoading || isProcessingAction) return;
+
+    try {
+      setIsProcessingAction(true);
+      setIsLoading(true);
+
+      const currentStatus = await BackgroundAudioRecorder.getStatus();
+
+      if (currentStatus.isRecording && !currentStatus.isPaused) {
+        await BackgroundAudioRecorder.pauseRecording();
+        setIsPaused(true);
+      } else if (currentStatus.isRecording && currentStatus.isPaused) {
+        await BackgroundAudioRecorder.resumeRecording();
+        setIsPaused(false);
+        setIsRecording(true);
+      } else {
+        await BackgroundAudioRecorder.startRecording(elapsedTimeBeforePause);
+        setIsRecording(true);
+        setIsPaused(false);
+      }
+
+      setTimeout(async () => {
+        try {
+          const updatedStatus = await BackgroundAudioRecorder.getStatus();
+
+          setIsRecording(updatedStatus.isRecording);
+          setIsPaused(updatedStatus.isPaused);
+          setRecordingTime(updatedStatus.currentTime);
+          if (updatedStatus.outputFile) {
+            setOutputFile(updatedStatus.outputFile);
+          }
+
+          setIsLoading(false);
+        } catch (error) {
+          Toast.show({
+            type: "error",
+            text1: error instanceof Error ? error.message : "Erro",
+            text2: "Erro ao obter o status da gravação.",
+          });
+          setIsLoading(false);
+        }
+
+        setIsProcessingAction(false);
+      }, 500);
+    } catch (error) {
+      setIsLoading(false);
+      setIsProcessingAction(false);
+
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Error",
+        text2: "Erro ao controlar a gravação.",
+      });
     }
-    setShowVocalizationModal(true);
   };
 
   const closeVocalizationModal = () => {
@@ -498,35 +549,76 @@ export default function HomeScreen() {
 
   const handleSaveAudio = async () => {
     if (!selectedVocalizationId) {
-      showMessage({
-        message: "Rótulo não selecionado",
-        description: "Por favor, selecione um rótulo de vocalização.",
-        type: "warning",
+      Toast.show({
+        type: "error",
+        text1: "Rótulo não selecionado",
+        text2: "Por favor, selecione um rótulo de vocalização.",
       });
       return;
     }
 
-    if (recordingSegments.length === 0) {
-      showMessage({
-        message: "Nenhuma gravação",
-        description: "Não foi encontrada gravação para salvar.",
-        type: "warning",
+    setIsLoading(true);
+
+    let filePath = outputFile;
+    if (!filePath) {
+      try {
+        filePath = await BackgroundAudioRecorder.getOutputFilePath();
+        if (filePath) {
+          setOutputFile(filePath);
+        }
+      } catch (error) {
+        Toast.show({
+          type: "error",
+          text1: error instanceof Error ? error.message : "Error",
+          text2: "Erro ao buscar caminho do arquivo de áudio.",
+        });
+      }
+    }
+
+    if (!filePath) {
+      setIsLoading(false);
+      Toast.show({
+        type: "error",
+        text1: "Nenhuma gravação",
+        text2: "Não foi encontrada gravação para salvar.",
       });
       return;
     }
 
     try {
-      const finalUri = await concatenateAudioSegments();
-      if (!finalUri) return;
+      await BackgroundAudioRecorder.forceStopService();
 
-      const filename = `recording_${Date.now()}.m4a`;
-      const newUri = `${FileSystem.documentDirectory}${filename}`;
+      const normalizedPath = filePath.startsWith("file://")
+        ? filePath
+        : `file://${filePath}`;
 
-      await FileSystem.moveAsync({
-        from: finalUri,
+      try {
+        const fileInfo = await FileSystem.getInfoAsync(normalizedPath);
+
+        if (!fileInfo.exists || fileInfo.size === 0) {
+          throw new Error(
+            `Arquivo não existe ou está vazio: ${normalizedPath}`
+          );
+        }
+      } catch (fileCheckError) {
+        Toast.show({
+          type: "error",
+          text1: "Erro",
+          text2: "Erro ao verificar arquivo de áudio.",
+        });
+        throw fileCheckError;
+      }
+
+      const audioDir = await FileOperations.getAudioDirectory();
+      const fileName = `recording_${Date.now()}.m4a`;
+      const newUri = `${audioDir}${fileName}`;
+
+      await FileSystem.copyAsync({
+        from: normalizedPath,
         to: newUri,
       });
 
+      const duration = recordingTime;
       const existingRecordings = await AsyncStorage.getItem("recordings");
       const recordings = existingRecordings
         ? JSON.parse(existingRecordings)
@@ -535,7 +627,7 @@ export default function HomeScreen() {
       recordings.push({
         uri: newUri,
         timestamp: Date.now(),
-        duration: displayTime,
+        duration: duration,
         vocalizationId: selectedVocalizationId,
         vocalizationName: vocalizations.find(
           (v) => v.id === selectedVocalizationId
@@ -545,34 +637,74 @@ export default function HomeScreen() {
 
       await AsyncStorage.setItem("recordings", JSON.stringify(recordings));
 
-      setRecordingSegments([]);
+      setOutputFile(null);
       setElapsedTimeBeforePause(0);
-      setDisplayTime(0);
       setRecordingTime(0);
       setIsPaused(false);
+      setIsRecording(false);
       setShowVocalizationModal(false);
 
-      await AsyncStorage.removeItem("recordingStartTime");
-      await AsyncStorage.removeItem("isRecording");
-      await AsyncStorage.removeItem("elapsedTimeBeforePause");
-
+      await BackgroundAudioRecorder.resetState();
       router.push("/audios");
-    } catch (error) {
-      showMessage({
-        message: "Erro ao salvar",
-        description: "Não foi possível salvar o áudio",
-        type: "danger",
+
+      Toast.show({
+        type: "success",
+        text1: "Gravação salva",
+        text2: "A gravação foi salva com sucesso.",
       });
+    } catch (error) {
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Error",
+        text2: "Erro ao salvar a gravação.",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  useFocusEffect(
+    useCallback(() => {
+      const resetScreenState = async () => {
+        if (!isRecording) {
+          setRecordingTime(0);
+          setElapsedTimeBeforePause(0);
+          setOutputFile(null);
+
+          try {
+            const status = await BackgroundAudioRecorder.getStatus();
+
+            if (!status.isRecording) {
+              await BackgroundAudioRecorder.resetState();
+            } else {
+              setIsRecording(status.isRecording);
+              setIsPaused(status.isPaused);
+              setRecordingTime(status.currentTime);
+              setOutputFile(status.outputFile);
+            }
+          } catch (error) {
+            Toast.show({
+              type: "error",
+              text1: error instanceof Error ? error.message : "Erro",
+              text2: "Erro ao sincronizar o estado da gravação.",
+            });
+          }
+        }
+      };
+
+      resetScreenState();
+
+      return () => {};
+    }, [isRecording])
+  );
 
   return (
     <View style={styles.container}>
       <View style={styles.timerSection}>
         <View style={styles.timerContainer}>
           <Text style={styles.timerLabel}>Tempo de Gravação</Text>
-          <Text style={styles.timer}>{formatTime(displayTime)}</Text>
-          {recording && (
+          <Text style={styles.timer}>{formatTime(recordingTime)}</Text>
+          {isRecording && !isPaused && (
             <View style={styles.recordingIndicator}>
               <View style={styles.recordingDot} />
               <Text style={styles.recordingText}>Gravando</Text>
@@ -582,13 +714,13 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.controlContainer}>
-        {isPaused && (
+        {(isPaused || (outputFile && !isRecording)) && (
           <Pressable
             onPress={() => setShowDiscardModal(true)}
             style={({ pressed }) => [
               styles.controlButton,
               styles.discardButton,
-              pressed && styles.buttonPressed
+              pressed && styles.buttonPressed,
             ]}
           >
             <MaterialIcons name="delete-outline" size={32} color="white" />
@@ -600,28 +732,46 @@ export default function HomeScreen() {
           style={({ pressed }) => [
             styles.controlButton,
             styles.recordButton,
-            recording && styles.recordingButton,
-            pressed && styles.buttonPressed
+            isRecording && !isPaused && styles.recordingButton,
+            isLoading && styles.disabledButton,
+            pressed && styles.buttonPressed,
           ]}
-          onPress={recording ? stopRecording : startRecording}
+          onPress={handleRecordPress}
+          disabled={isLoading}
         >
-          <MaterialIcons
-            name={recording ? "pause" : isPaused ? "play-arrow" : "mic"}
-            size={40}
-            color="white"
-          />
-          <Text style={styles.buttonText}>
-            {recording ? "Pausar" : isPaused ? "Continuar" : "Gravar"}
-          </Text>
+          {isLoading ? (
+            <ActivityIndicator color="white" size="large" />
+          ) : (
+            <>
+              <MaterialIcons
+                name={
+                  isRecording && !isPaused
+                    ? "pause"
+                    : isPaused
+                    ? "play-arrow"
+                    : "mic"
+                }
+                size={40}
+                color="white"
+              />
+              <Text style={styles.buttonText}>
+                {isRecording && !isPaused
+                  ? "Pausar"
+                  : isPaused
+                  ? "Continuar"
+                  : "Gravar"}
+              </Text>
+            </>
+          )}
         </Pressable>
 
-        {isPaused && (
+        {(isPaused || (outputFile && !isRecording)) && (
           <Pressable
-            onPress={openVocalizationModal}
+            onPress={handleSaveButtonPress}
             style={({ pressed }) => [
               styles.controlButton,
               styles.saveButton,
-              pressed && styles.buttonPressed
+              pressed && styles.buttonPressed,
             ]}
           >
             <MaterialIcons name="save" size={32} color="white" />
@@ -640,9 +790,9 @@ export default function HomeScreen() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Selecionar Rótulo</Text>
-              <MaterialIcons 
-                name="close" 
-                size={24} 
+              <MaterialIcons
+                name="close"
+                size={24}
                 color="#666"
                 onPress={closeVocalizationModal}
                 style={styles.modalClose}
@@ -652,16 +802,10 @@ export default function HomeScreen() {
             {loadingVocalizations ? (
               <ActivityIndicator size="large" color="#2196F3" />
             ) : (
-              <Select
-                label="Tipo de Vocalização"
-                selectedValue={selectedVocalizationId?.toString() || ""}
-                onValueChange={(itemValue) =>
-                  setSelectedVocalizationId(Number(itemValue))
-                }
-                options={vocalizations.map((voc) => ({
-                  label: translateVocalization[voc.nome] || voc.nome,
-                  value: voc.id.toString(),
-                }))}
+              <VocalizationSelect
+                vocalizations={vocalizations}
+                selectedVocalizationId={selectedVocalizationId}
+                onValueChange={(value) => setSelectedVocalizationId(value)}
               />
             )}
 
@@ -676,6 +820,7 @@ export default function HomeScreen() {
             </View>
           </View>
         </View>
+        <Toast />
       </Modal>
 
       <ConfirmationModal
@@ -691,17 +836,20 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: "#F5F5F5",
     paddingHorizontal: 20,
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
   timerSection: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   timerContainer: {
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
     padding: 32,
     borderRadius: 16,
     shadowColor: "#000",
@@ -715,104 +863,94 @@ const styles = StyleSheet.create({
   },
   timerLabel: {
     fontSize: 16,
-    color: '#666',
+    color: "#666",
     marginBottom: 8,
   },
   timer: {
     fontSize: 48,
-    fontWeight: '700',
-    color: '#2196F3',
-    fontVariant: ['tabular-nums'],
+    fontWeight: "700",
+    color: "#2196F3",
+    fontVariant: ["tabular-nums"],
   },
   recordingIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: 16,
   },
   recordingDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#F44336',
+    backgroundColor: "#F44336",
     marginRight: 8,
   },
   recordingText: {
-    color: '#F44336',
+    color: "#F44336",
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   controlContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     paddingBottom: 40,
     gap: 20,
   },
   controlButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     padding: 16,
     borderRadius: 16,
-    backgroundColor: '#2196F3',
+    backgroundColor: "#2196F3",
     minWidth: 96,
   },
   recordButton: {
-    backgroundColor: '#2196F3',
+    backgroundColor: "#2196F3",
     width: 100,
     height: 100,
     borderRadius: 50,
   },
   recordingButton: {
-    backgroundColor: '#F44336',
+    backgroundColor: "#F44336",
   },
   discardButton: {
-    backgroundColor: '#757575',
+    backgroundColor: "#757575",
   },
   saveButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: "#4CAF50",
   },
   buttonPressed: {
     opacity: 0.8,
     transform: [{ scale: 0.98 }],
   },
   buttonText: {
-    color: '#FFF',
+    color: "#FFF",
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     marginTop: 4,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: '#FFF',
+    backgroundColor: "#FFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 24,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    elevation: 4,
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 20,
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#212121',
+    fontWeight: "600",
+    color: "#212121",
   },
   modalClose: {
     padding: 4,

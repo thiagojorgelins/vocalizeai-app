@@ -1,6 +1,7 @@
 import ButtonCustom from "@/components/Button";
 import ConfirmationModal from "@/components/ConfirmationModal";
 import Input from "@/components/Inputs/Input";
+import { getRole } from "@/services/util";
 import {
   createVocalizacoes,
   deleteVocalizacoes,
@@ -20,8 +21,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { showMessage } from "react-native-flash-message";
-import { getRole } from "@/services/util";
+import Toast from "react-native-toast-message";
 
 export default function VocalizacoesScreen() {
   const [vocalizacoes, setVocalizacoes] = useState<Vocalizacao[]>([]);
@@ -38,7 +38,11 @@ export default function VocalizacoesScreen() {
       const role = await getRole();
       setIsAdmin(role === "admin");
     } catch (error) {
-      console.error("Error checking role:", error);
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Não foi possível verificar a permissão de administrador",
+      })
       setIsAdmin(false);
     }
   }, []);
@@ -49,11 +53,11 @@ export default function VocalizacoesScreen() {
       const vocalizacaosList = await getVocalizacoes();
       setVocalizacoes(vocalizacaosList);
     } catch (error: any) {
-      showMessage({
-        message: "Erro",
-        description: error.message || "Não foi possível carregar as vocalizações",
-        type: "danger",
-      });
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Não foi possível carregar as vocalizações",
+      })
     } finally {
       setIsLoading(false);
     }
@@ -68,11 +72,11 @@ export default function VocalizacoesScreen() {
 
   const handleEdit = (vocalizacao: Vocalizacao) => {
     if (!isAdmin) {
-      showMessage({
-        message: "Acesso Negado",
-        description: "Você não tem permissão para editar vocalizações",
-        type: "warning",
-      });
+      Toast.show({
+        type: "error",
+        text1: "Acesso Negado",
+        text2: "Você não tem permissão para editar vocalizações",
+      })
       return;
     }
     setSelectedVocalizacao(vocalizacao);
@@ -83,19 +87,19 @@ export default function VocalizacoesScreen() {
 
   const validateForm = () => {
     if (!nome.trim()) {
-      showMessage({
-        message: "Erro",
-        description: "O nome é obrigatório",
-        type: "warning",
-      });
+      Toast.show({
+        type: "error",
+        text1: "Erro",
+        text2: "O nome é obrigatório",
+      })
       return false;
     }
     if (!descricao.trim()) {
-      showMessage({
-        message: "Erro",
-        description: "A descrição é obrigatória",
-        type: "warning",
-      });
+      Toast.show({
+        type: "error",
+        text1: "Erro",
+        text2: "A descrição é obrigatória",
+      })
       return false;
     }
     return true;
@@ -113,29 +117,29 @@ export default function VocalizacoesScreen() {
           descricao: descricao.trim(),
         });
 
-        showMessage({
-          message: "Sucesso",
-          description: "Vocalização atualizada com sucesso!",
+        Toast.show({
           type: "success",
-        });
+          text1: "Sucesso",
+          text2: "Vocalização atualizada com sucesso!",
+        })
       } else {
         await createVocalizacoes(nome.trim(), descricao.trim());
 
-        showMessage({
-          message: "Sucesso",
-          description: "Vocalização criada com sucesso!",
+        Toast.show({
           type: "success",
-        });
+          text1: "Sucesso",
+          text2: "Vocalização criada com sucesso!",
+        })
       }
 
       setShowModal(false);
       fetchVocalizacoes();
     } catch (error: any) {
-      showMessage({
-        message: "Erro",
-        description: error.message,
-        type: "danger",
-      });
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Erro ao tentar salvar a vocalização",
+      })
     } finally {
       setIsLoading(false);
     }
@@ -148,20 +152,20 @@ export default function VocalizacoesScreen() {
     try {
       await deleteVocalizacoes(selectedVocalizacao.id.toString());
 
-      showMessage({
-        message: "Sucesso",
-        description: "Vocalização deletada com sucesso!",
+      Toast.show({
         type: "success",
-      });
+        text1: "Sucesso",
+        text2: "Vocalização deletada com sucesso!",
+      })
 
       setShowConfirmModal(false);
       fetchVocalizacoes();
     } catch (error: any) {
-      showMessage({
-        message: "Erro",
-        description: error.message,
-        type: "danger",
-      });
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Erro ao tentar deletar a vocalização",
+      })
     } finally {
       setIsLoading(false);
     }
@@ -169,11 +173,11 @@ export default function VocalizacoesScreen() {
 
   const handleAdd = () => {
     if (!isAdmin) {
-      showMessage({
-        message: "Acesso Negado",
-        description: "Você não tem permissão para adicionar vocalizações",
-        type: "warning",
-      });
+      Toast.show({
+        type: "error",
+        text1: "Acesso Negado",
+        text2: "Você não tem permissão para adicionar vocalizações",
+      })
       return;
     }
     setSelectedVocalizacao(null);
@@ -271,6 +275,8 @@ export default function VocalizacoesScreen() {
 
             <Input
               label="Nome"
+              maxLength={50}
+              showCharacterCount={true}
               value={nome}
               onChangeText={setNome}
               placeholder="Digite o nome da vocalização"

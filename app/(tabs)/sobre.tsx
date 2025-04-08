@@ -1,16 +1,17 @@
+import { MaterialIcons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 import React from "react";
 import {
   Linking,
   ScrollView,
   StyleSheet,
   Text,
-  View,
   TouchableOpacity,
-  Platform,
+  View,
 } from "react-native";
-import * as Clipboard from "expo-clipboard";
-import { showMessage } from "react-native-flash-message";
-import { MaterialIcons } from "@expo/vector-icons";
+
+import JustifiedText from "@/components/JustifiedText";
+import Toast from "react-native-toast-message";
 
 export default function SobreScreen() {
   const vocalizationLabels = [
@@ -50,39 +51,56 @@ export default function SobreScreen() {
     try {
       const textToCopy = title ? `${title}\n\n${text}` : text;
       await Clipboard.setStringAsync(textToCopy);
+      Toast.show({
+        text1: "Texto copiado para a área de transferência",
+        type: "success",
+      })
     } catch (error) {
-      showMessage({
-        message: "Erro ao copiar texto",
-        type: "danger",
-        duration: 2000,
-      });
+      Toast.show({
+        text1: error instanceof Error ? error.message : "Error",
+        text2: "Erro ao copiar texto",
+        type: "error",
+      })
     }
+  };
+
+  const renderJustifiedText = (text: string, testID: string) => {
+    const paragraphs = text.split("\n\n");
+
+    return paragraphs.map((paragraph, index) => (
+      <JustifiedText
+        key={`${testID}-paragraph-${index}`}
+        testID={`${testID}-${index}`}
+        style={index === paragraphs.length - 1 ? styles.lastParagraph : null}
+      >
+        {paragraph}
+      </JustifiedText>
+    ));
   };
 
   const renderCard = (
     title: string,
     content: string | React.ReactNode,
-    showShareButton = true
+    showShareButton = true,
+    testID: string = ""
   ) => (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <Text style={styles.cardTitle}>{title}</Text>
-        {showShareButton && (
+        {showShareButton && typeof content === "string" && (
           <TouchableOpacity
-            onPress={() => handleCopy(content as string, title)}
+            onPress={() => handleCopy(content, title)}
             style={styles.shareButton}
+            testID={`copy-${testID}`}
           >
             <MaterialIcons name="content-copy" size={20} color="#2196F3" />
           </TouchableOpacity>
         )}
       </View>
-      {typeof content === "string" ? (
-        <Text style={styles.text} selectable={true}>
-          {content}
-        </Text>
-      ) : (
-        content
-      )}
+
+      {typeof content === "string"
+        ? renderJustifiedText(content, testID)
+        : content}
     </View>
   );
 
@@ -93,9 +111,11 @@ export default function SobreScreen() {
           <Text style={styles.sectionTitle}>Sobre a Pesquisa</Text>
           {renderCard(
             "",
-            `Esta pesquisa propõe uma ferramenta de Inteligência Artificial para ampliar a capacidade de comunicação de indivíduos com autismo, focando especialmente em pessoas minimalmente verbais (mv*) que produzem entre 0 e 20 palavras ou aproximações de palavras faladas.
+            `Esta pesquisa propõe uma ferramenta de Inteligência Artificial para ampliar a capacidade de comunicação de indivíduos com autismo, focando especialmente em pessoas minimamente verbais (mv*) que produzem entre 0 e 20 palavras ou aproximações de palavras faladas.
 
-Através do uso de técnicas de aprendizado de máquina, buscamos classificar vocalizações não verbais para melhor compreender as intenções comunicativas desses indivíduos, contribuindo para uma comunicação mais efetiva com cuidadores, familiares e profissionais de saúde.`
+Através do uso de técnicas de aprendizado de máquina, buscamos classificar vocalizações não verbais para melhor compreender as intenções comunicativas desses indivíduos, contribuindo para uma comunicação mais efetiva com cuidadores, familiares e profissionais de saúde.`,
+            true,
+            "sobre-pesquisa"
           )}
         </View>
 
@@ -103,14 +123,18 @@ Através do uso de técnicas de aprendizado de máquina, buscamos classificar vo
           <Text style={styles.sectionTitle}>Objetivo</Text>
           {renderCard(
             "",
-            "Desenvolver um aplicativo móvel que permita a gravação e classificação automática de vocalizações, utilizando modelos de aprendizado de máquina treinados com o banco de dados ReCANVo e com as vocalizações coletadas a partir desta aplicação. O sistema classificará as vocalizações em seis categorias distintas, auxiliando na interpretação das intenções comunicativas."
+            "Desenvolver um aplicativo móvel que permita a gravação e classificação automática de vocalizações, utilizando modelos de aprendizado de máquina treinados com o banco de dados ReCANVo e com as vocalizações coletadas a partir desta aplicação. O sistema classificará as vocalizações em seis categorias distintas, auxiliando na interpretação das intenções comunicativas.",
+            true,
+            "objetivo"
           )}
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Tipos de Vocalizações</Text>
           {vocalizationLabels.map((type, index) => (
-            <View key={index}>{renderCard(type.title, type.description)}</View>
+            <View key={index}>
+              {renderCard(type.title, type.description, true, `tipo-${index}`)}
+            </View>
           ))}
         </View>
 
@@ -119,14 +143,10 @@ Através do uso de técnicas de aprendizado de máquina, buscamos classificar vo
           {renderCard(
             "Banco de Dados ReCANVo",
             <>
-              <Text style={styles.text} selectable={true}>
-                O ReCANVo (Real-World Communicative and Affective Nonverbal
-                Vocalizations) é um banco de dados inovador que contém mais de
-                7.000 vocalizações de indivíduos minimalmente verbais,
-                categorizadas por função comunicativa. As vocalizações foram
-                gravadas em ambientes reais e rotuladas em tempo real por
-                familiares próximos que conheciam bem o comunicador.
-              </Text>
+              {renderJustifiedText(
+                "O ReCANVo (Real-World Communicative and Affective Nonverbal Vocalizations) é um banco de dados inovador que contém mais de 7.000 vocalizações de indivíduos minimamente verbais, categorizadas por função comunicativa. As vocalizações foram gravadas em ambientes reais e rotuladas em tempo real por familiares próximos que conheciam bem o comunicador.",
+                "recanvo-desc"
+              )}
               <TouchableOpacity
                 onPress={() =>
                   Linking.openURL(
@@ -144,20 +164,15 @@ Através do uso de técnicas de aprendizado de máquina, buscamos classificar vo
           {renderCard(
             "Projeto Commalla",
             <>
-              <Text style={styles.text} selectable={true}>
-                O Commalla (Communication for all) é um projeto de pesquisa
-                dedicado a encontrar formas inteligentes de usar tecnologia para
-                um futuro melhor para todos. O projeto foca em mais de 1 milhão
-                de pessoas nos EUA que são não-verbais ou minimamente verbais,
-                incluindo pessoas com autismo, síndrome de Down e outros
-                transtornos.
-              </Text>
-              <Text style={[styles.text, styles.marginTop]} selectable={true}>
-                O projeto desenvolve modelos personalizados para classificar
-                vocalizações usando rótulos em tempo real de cuidadores através
-                do aplicativo Commalla, com métodos escaláveis para coleta e
-                rotulagem de dados naturalísticos.
-              </Text>
+              {renderJustifiedText(
+                "O Commalla (Communication for all) é um projeto de pesquisa dedicado a encontrar formas inteligentes de usar tecnologia para um futuro melhor para todos. O projeto foca em mais de 1 milhão de pessoas nos EUA que são não-verbais ou minimamente verbais, incluindo pessoas com autismo, síndrome de Down e outros transtornos.",
+                "commalla-desc-1"
+              )}
+              <View style={{ height: 16 }} />
+              {renderJustifiedText(
+                "O projeto desenvolve modelos personalizados para classificar vocalizações usando rótulos em tempo real de cuidadores através do aplicativo Commalla, com métodos escaláveis para coleta e rotulagem de dados naturalísticos.",
+                "commalla-desc-2"
+              )}
               <TouchableOpacity
                 onPress={() =>
                   Linking.openURL(
@@ -203,25 +218,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 20,
     marginBottom: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: {
-          width: 0,
-          height: 2,
-        },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    elevation: 3,
   },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 10,
   },
   cardTitle: {
     fontSize: 18,
@@ -230,17 +233,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   shareButton: {
+    padding: 8,
     borderRadius: 20,
     backgroundColor: "rgba(33, 150, 243, 0.1)",
   },
-  text: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: "#424242",
-    textAlign: "justify",
-  },
-  marginTop: {
-    marginTop: 16,
+  lastParagraph: {
+    marginBottom: 0,
   },
   linkContainer: {
     flexDirection: "row",

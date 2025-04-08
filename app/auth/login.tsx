@@ -7,40 +7,53 @@ import {
   doLogin,
   sendConfirmationCode,
 } from "@/services/authService";
+import { validarEmail } from "@/services/usuarioService";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+  Image,
   KeyboardAvoidingView,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from "react-native";
-import { showMessage } from "react-native-flash-message";
+import Toast from "react-native-toast-message";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [codigoConfirmacao, setCodigoConfirmacao] = useState("");
+  const [emailError, setEmailError] = useState("");
+
+  const handleEmailChange = (text: string) => {
+    setEmail(text);
+
+    if (text && !validarEmail(text)) {
+      setEmailError("Formato de email inválido.");
+    } else {
+      setEmailError("");
+    }
+  };
   const router = useRouter();
 
   async function handleLogin() {
     if (!email || !password) {
-      showMessage({
-        message: "Email e senha são obrigatórios.",
-        type: "danger",
+      Toast.show({
+        type: "error",
+        text1: "Erro ao fazer login",
+        text2: "Email e senha são obrigatórios.",
       });
       return;
     }
 
     if (!/^\S+@\S+\.\S+$/.test(email)) {
-      showMessage({
-        message: "Formato do email é inválido.",
-        type: "danger",
+      Toast.show({
+        type: "error",
+        text1: "Erro ao fazer login",
+        text2: "Formato do email é inválido.",
       });
       return;
     }
@@ -53,9 +66,10 @@ export default function LoginScreen() {
         setIsModalVisible(true);
       }
     } catch (error: any) {
-      showMessage({
-        message: "Erro inesperado ao fazer login.",
-        type: "danger",
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Erro Inesperado",
+        text2: error.response?.data?.detail || "Erro ao fazer login.",
       });
     }
   }
@@ -64,9 +78,10 @@ export default function LoginScreen() {
     if (!codigoConfirmacao) return;
     try {
       await confirmRegistration(email, codigoConfirmacao);
-      showMessage({
-        message: "Cadastro confirmado com sucesso!",
+      Toast.show({
         type: "success",
+        text1: "Cadastro confirmado com sucesso!",
+        text2: "Você já pode acessar o aplicativo.",
       });
       setIsModalVisible(false);
       const loginStatus = await doLogin(email, password);
@@ -74,9 +89,10 @@ export default function LoginScreen() {
         router.replace("/(tabs)");
       }
     } catch (error: any) {
-      showMessage({
-        message: "Código de confirmação inválido.",
-        type: "danger",
+      Toast.show({
+        type: "error",
+        text1: "Erro ao confirmar cadastro",
+        text2: "Código de confirmação inválido.",
       });
     }
   }
@@ -84,43 +100,46 @@ export default function LoginScreen() {
   async function handleResendCode() {
     try {
       await sendConfirmationCode(email);
-      showMessage({
-        message: "Novo código de confirmação enviado para o e-mail.",
+      Toast.show({
+        text1: "Novo código de confirmação enviado",
+        text2: "Verifique seu e-mail.",
         type: "success",
       });
     } catch (error: any) {
-      showMessage({
-        message: "Erro ao enviar o código de confirmação.",
-        type: "danger",
+      Toast.show({
+        text1: "Erro ao enviar o código de confirmação",
+        type: "error",
       });
     }
   }
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.container}
-    >
+    <KeyboardAvoidingView behavior={"height"} style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <MaterialIcons name="login" size={40} color="#2196F3" />
-          <Text style={styles.title}>Login</Text>
+          <Image source={require("@/assets/images/ic_launcher.png")} />
+          <Text style={styles.title}>Bem vindo ao Projeto VocalizeAI!</Text>
+          <Text>v.0.0.1</Text>
         </View>
 
         <View style={styles.card}>
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Acesse sua conta</Text>
+            <Text style={styles.sectionTitle}>Acesse o Aplicativo</Text>
 
             <Input
               label="Email"
-              placeholder="Informe seu Email"
+              placeholder="Informe seu email"
               value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
+              showCharacterCount={true}
+              maxLength={80}
+              onChangeText={handleEmailChange}
               leftIcon={<MaterialIcons name="email" size={20} color="#666" />}
+              keyboardType="email-address"
+              error={!!emailError}
+              errorMessage={emailError}
             />
 
             <InputPassword
@@ -152,8 +171,8 @@ export default function LoginScreen() {
             <ButtonCustom
               title="Não possui cadastro? Cadastre-se"
               variant="link"
-              color={"#000"}
-              onPress={() => router.push("/auth/cadastro")}
+              color="#2196F3"
+              onPress={() => router.push("/auth/cadastro-participante")}
             />
           </View>
         </View>
@@ -194,7 +213,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "700",
     color: "#212121",
-    letterSpacing: 0.25,
+    textAlign: "center",
   },
   card: {
     backgroundColor: "#FFFFFF",
