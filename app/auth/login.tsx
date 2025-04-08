@@ -172,7 +172,7 @@ export default function LoginScreen() {
               title="Não possui cadastro? Cadastre-se"
               variant="link"
               color="#2196F3"
-              onPress={() => router.push("/auth/cadastro-participante")}
+              onPress={() => router.push("/auth/cadastro")}
             />
           </View>
         </View>
