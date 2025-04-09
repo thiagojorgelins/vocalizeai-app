@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import { jwtDecode } from "jwt-decode";
 import Toast from "react-native-toast-message";
 import { api } from "./api";
+import { getUser } from "./usuarioService";
 
 let isUpdatingToken = false;
 
@@ -79,8 +80,26 @@ const doLogin = async (email: string, senha: string): Promise<string> => {
           headers: { Authorization: `Bearer ${access_token}` },
         });
         await AsyncStorage.setItem("username", userResponse.data.nome);
+
+        const userData = await getUser();
+        if (!userData.participante || !userData.participante.id) {
+          await AsyncStorage.setItem("hasParticipant", "false");
+          router.replace("/usuario/dados-participante");
+
+          Toast.show({
+            type: "info",
+            text1: "Atenção",
+            text2: "Por favor, preencha os dados do participante antes de gravar as vocalizações.",
+          });
+
+          return "success";
+        } else {
+          await AsyncStorage.setItem("hasParticipant", "true");
+          await AsyncStorage.setItem("participantId", userData.participante.id.toString());
+        }
       } catch (error) {
         await AsyncStorage.setItem("username", "Usuário");
+        await AsyncStorage.setItem("hasParticipant", "false");
       }
 
       await AsyncStorage.multiSet([
@@ -128,6 +147,15 @@ const stopTokenUpdateRoutine = () => {
     clearInterval(tokenUpdateInterval);
     tokenUpdateInterval = null;
     setIsUpdatingToken(false);
+  }
+};
+
+const hasParticipantRegistered = async (): Promise<boolean> => {
+  try {
+    const hasParticipant = await AsyncStorage.getItem("hasParticipant");
+    return hasParticipant === "true";
+  } catch (error) {
+    return false;
   }
 };
 
@@ -219,7 +247,7 @@ const confirmRegistration = async (email: string, codigoConfirmacao: string): Pr
 }
 
 const doLogout = async (): Promise<void> => {
-  await AsyncStorage.multiRemove(["token", "tokenExpires", "role", "usuarioId", "email", "senha", "username"]);
+  await AsyncStorage.multiRemove(["token", "tokenExpires", "role", "usuarioId", "email", "senha", "username", "hasParticipant", "participantId"]);
   stopTokenUpdateRoutine();
   router.push("/auth/login");
 };
@@ -254,4 +282,4 @@ const resetPassword = async (email: string, codigoConfirmacao: string, novaSenha
   }
 };
 
-export { confirmPasswordReset, confirmRegistration, doLogin, doLogout, getExpirationTime, register, requestPasswordReset, resetPassword, sendConfirmationCode, updateToken };
+export { confirmPasswordReset, confirmRegistration, doLogin, doLogout, getExpirationTime, hasParticipantRegistered, register, requestPasswordReset, resetPassword, sendConfirmationCode, updateToken };

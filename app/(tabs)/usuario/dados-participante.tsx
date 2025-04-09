@@ -11,8 +11,9 @@ import {
 import { getUser } from "@/services/usuarioService";
 import { ParticipantePayload } from "@/types/ParticipantePayload";
 import { MaterialIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -36,8 +37,21 @@ export default function DadosParticipanteScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isModalLoading, setIsModalLoading] = useState(false);
   const [idadeError, setIdadeError] = useState("");
+  const [redirectedFromHome, setRedirectedFromHome] = useState(false);
 
   const router = useRouter();
+
+  useEffect(() => {
+    const checkRedirection = async () => {
+      const fromHome = await AsyncStorage.getItem("redirectedFromHome");
+      if (fromHome === "true") {
+        setRedirectedFromHome(true);
+        await AsyncStorage.removeItem("redirectedFromHome");
+      }
+    };
+
+    checkRedirection();
+  }, []);
 
   const loadParticipantData = useCallback(async () => {
     setIsLoading(true);
@@ -117,18 +131,32 @@ export default function DadosParticipanteScreen() {
 
       if (participantId) {
         await updateParticipante(participantId, payload);
+        await AsyncStorage.setItem("hasParticipant", "true");
+
         Toast.show({
           type: "success",
           text1: "Sucesso!",
           text2: "Dados do participante atualizados.",
         });
       } else {
-        await createParticipante(payload);
+        const response = await createParticipante(payload);
+        if (response && response.id) {
+          setParticipantId(response.id.toString());
+          await AsyncStorage.setItem("hasParticipant", "true");
+          await AsyncStorage.setItem("participantId", response.id.toString());
+        }
+
         Toast.show({
           type: "success",
           text1: "Sucesso!",
           text2: "Participante criado com sucesso.",
         });
+
+        if (redirectedFromHome) {
+          setTimeout(() => {
+            router.replace("/(tabs)");
+          }, 1000);
+        }
       }
     } catch (error: any) {
       const errorMessage =
@@ -179,12 +207,37 @@ export default function DadosParticipanteScreen() {
           <Text style={styles.title}>
             {participantId ? "Editar Participante" : "Novo Participante"}
           </Text>
+
+          {redirectedFromHome && (
+            <View style={styles.warningContainer}>
+              <MaterialIcons name="warning" size={24} color="#FF9800" />
+              <Text style={styles.warningText}>
+                Por favor, preencha os dados do participante antes de gravar as
+                vocalizações.
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.card}>
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Informações do Participante</Text>
-
+            {
+              !participantId? (
+                <View style={styles.readOnlyFieldContainer}>
+                <Text style={styles.fieldLabel}>Condição do Participante</Text>
+                <View style={styles.readOnlyField}>
+                  <MaterialIcons
+                    name="medical-services"
+                    size={20}
+                    color="#666"
+                    style={styles.fieldIcon}
+                  />
+                  <Text style={styles.readOnlyText}>TEA</Text>
+                </View>
+              </View>
+              )
+            : null}
             <Input
               label="Idade"
               placeholder="Idade do Participante"
@@ -351,6 +404,22 @@ const styles = StyleSheet.create({
     color: "#212121",
     letterSpacing: 0.25,
   },
+  warningContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFF3E0",
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: "#FFE0B2",
+  },
+  warningText: {
+    fontSize: 14,
+    color: "#E65100",
+    marginLeft: 8,
+    flex: 1,
+  },
   card: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
@@ -402,5 +471,31 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#D32F2F",
     fontWeight: "500",
+  },
+  readOnlyFieldContainer: {
+    marginBottom: 8,
+  },
+  fieldLabel: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#424242",
+    marginBottom: 8,
+  },
+  readOnlyField: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F5F5F5",
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  fieldIcon: {
+    marginRight: 12,
+  },
+  readOnlyText: {
+    fontSize: 16,
+    color: "#666",
   },
 });

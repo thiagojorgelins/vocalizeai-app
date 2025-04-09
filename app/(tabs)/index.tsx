@@ -1,6 +1,7 @@
 import ButtonCustom from "@/components/Button";
 import ConfirmationModal from "@/components/ConfirmationModal";
 import VocalizationSelect from "@/components/VocalizationSelect";
+import { hasParticipantRegistered } from "@/services/authService";
 import { getVocalizacoes } from "@/services/vocalizacoesService";
 import { Vocalizacao } from "@/types/Vocalizacao";
 import BackgroundAudioRecorder from "@/utils/BackgroundAudioRecorder";
@@ -25,6 +26,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 import Toast from "react-native-toast-message";
@@ -46,6 +48,8 @@ export default function HomeScreen() {
   const [elapsedTimeBeforePause, setElapsedTimeBeforePause] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessingAction, setIsProcessingAction] = useState(false);
+  const [hasParticipant, setHasParticipant] = useState<boolean | null>(null);
+  const [checkingParticipant, setCheckingParticipant] = useState(true);
 
   const timeUpdateListenerRef = useRef<Function | null>(null);
   const statusChangeListenerRef = useRef<Function | null>(null);
@@ -59,10 +63,24 @@ export default function HomeScreen() {
       .padStart(2, "0")}`;
   };
 
+  const checkParticipant = async () => {
+    setCheckingParticipant(true);
+    try {
+      const participantExists = await hasParticipantRegistered();
+      setHasParticipant(participantExists);
+    } catch (error) {
+      console.error("Erro ao verificar participante:", error);
+      setHasParticipant(false);
+    } finally {
+      setCheckingParticipant(false);
+    }
+  };
+
   useEffect(() => {
     const setup = async () => {
       await setupApp();
       setupRecordingListeners();
+      await checkParticipant();
     };
 
     setup();
@@ -487,6 +505,20 @@ export default function HomeScreen() {
   }
 
   const handleRecordPress = async () => {
+    if (!hasParticipant) {
+      await AsyncStorage.setItem("redirectedFromHome", "true");
+
+      router.push("/usuario/dados-participante");
+
+      Toast.show({
+        type: "info",
+        text1: "Atenção",
+        text2: "É necessário cadastrar um participante antes de gravar vocalizações.",
+      });
+
+      return;
+    }
+
     if (isLoading || isProcessingAction) return;
 
     try {
@@ -666,6 +698,8 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       const resetScreenState = async () => {
+        await checkParticipant();
+
         if (!isRecording) {
           setRecordingTime(0);
           setElapsedTimeBeforePause(0);
@@ -698,8 +732,29 @@ export default function HomeScreen() {
     }, [isRecording])
   );
 
+  const handleNavigateToParticipantRegistration = async () => {
+    await AsyncStorage.setItem("redirectedFromHome", "true");
+
+    router.push("/usuario/dados-participante");
+  };
+
   return (
     <View style={styles.container}>
+      {hasParticipant === false && (
+        <View style={styles.warningContainer}>
+          <MaterialIcons name="warning" size={24} color="#FF9800" style={{textAlign: "center"}}/>
+          <Text style={styles.warningText}>
+            É necessário cadastrar um participante antes de gravar vocalizações.
+          </Text>
+          <TouchableOpacity
+            style={styles.warningButton}
+            onPress={handleNavigateToParticipantRegistration}
+          >
+            <Text style={styles.warningButtonText}>Cadastrar Participante</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <View style={styles.timerSection}>
         <View style={styles.timerContainer}>
           <Text style={styles.timerLabel}>Tempo de Gravação</Text>
@@ -733,11 +788,11 @@ export default function HomeScreen() {
             styles.controlButton,
             styles.recordButton,
             isRecording && !isPaused && styles.recordingButton,
-            isLoading && styles.disabledButton,
+            (isLoading || checkingParticipant || hasParticipant === false) && styles.disabledButton,
             pressed && styles.buttonPressed,
           ]}
           onPress={handleRecordPress}
-          disabled={isLoading}
+          disabled={isLoading || checkingParticipant || hasParticipant === false}
         >
           {isLoading ? (
             <ActivityIndicator color="white" size="large" />
@@ -961,4 +1016,34 @@ const styles = StyleSheet.create({
   modalButton: {
     marginVertical: 8,
   },
-});
+  warningContainer: {
+    backgroundColor: "#FFF3E0",
+    padding: 16,
+    borderRadius: 10,
+    marginVertical: 16,
+    flexDirection: "column",
+    borderWidth: 1,
+    borderColor: "#FFE0B2",
+    elevation: 2,
+  },
+  warningText: {
+    fontSize: 14,
+    color: "#E65100",
+    marginLeft: 8,
+    marginTop: 8,
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  warningButton: {
+    backgroundColor: "#FF9800",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    alignSelf: "center",
+  },
+  warningButtonText: {
+    color: "#FFF",
+    fontWeight: "600",
+    textAlign: "center",
+  },
+})
