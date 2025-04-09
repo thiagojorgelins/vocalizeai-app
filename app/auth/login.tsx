@@ -12,13 +12,13 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-  Image,
   KeyboardAvoidingView,
   ScrollView,
   StyleSheet,
   Text,
-  View,
+  View
 } from "react-native";
+import LinearGradient from "react-native-linear-gradient";
 import Toast from "react-native-toast-message";
 
 export default function LoginScreen() {
@@ -120,7 +120,16 @@ export default function LoginScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Image source={require("@/assets/images/ic_launcher.png")} />
+          <View style={styles.logoContainer}>
+          <Text style={styles.logoText}>VocalizeAI</Text>
+
+            <LinearGradient
+              colors={["#2196F3", "transparent"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.underline}
+            />
+          </View>
           <Text style={styles.title}>Bem vindo ao Projeto VocalizeAI!</Text>
           <Text>v.0.0.1</Text>
         </View>
@@ -263,5 +272,29 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
     fontWeight: "500",
+  },
+  underline: {
+    width: "50%",
+    height: 3,
+    marginTop: 8,
+    borderRadius: 2,
+  },
+  logoContainer: {
+    alignItems: "center",
+    width: "100%",
+  },
+  gradient: {
+    borderRadius: 8,
+    padding: 8,
+  },
+  logoText: {
+    fontSize: 32,
+    fontFamily: "Quicksand-Bold",
+    letterSpacing: 1.2,
+    color: "#2196F3",
+    textAlign: "center",
+    textShadowColor: "rgba(0, 0, 0, 0.1)",
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
   },
 });
