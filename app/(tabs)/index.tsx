@@ -50,7 +50,8 @@ export default function HomeScreen() {
   const [isProcessingAction, setIsProcessingAction] = useState(false);
   const [hasParticipant, setHasParticipant] = useState<boolean | null>(null);
   const [checkingParticipant, setCheckingParticipant] = useState(true);
-
+  const [actionCooldown, setActionCooldown] = useState(false);
+  const cooldownTimeout = useRef<NodeJS.Timeout | null>(null);
   const timeUpdateListenerRef = useRef<Function | null>(null);
   const statusChangeListenerRef = useRef<Function | null>(null);
   const recordingCompleteListenerRef = useRef<Function | null>(null);
@@ -102,7 +103,7 @@ export default function HomeScreen() {
               type: "error",
               text1: "Erro ao sincronizar estado",
               text2: "Erro ao sincronizar o estado da gravação.",
-            })
+            });
           }
         }
       }, 1000);
@@ -139,23 +140,50 @@ export default function HomeScreen() {
   useEffect(() => {
     const syncState = async () => {
       try {
+        await BackgroundAudioRecorder.forceSync();
         const status = await BackgroundAudioRecorder.getStatus();
 
-        if (
-          status.isRecording !== isRecording ||
-          status.isPaused !== isPaused
-        ) {
+        if (status.outputFile) {
+          try {
+            const normalizedPath = status.outputFile.startsWith("file://")
+              ? status.outputFile
+              : `file://${status.outputFile}`;
+
+            const fileInfo = await FileSystem.getInfoAsync(normalizedPath);
+
+            if (!fileInfo.exists || fileInfo.size === 0) {
+              status.isRecording = false;
+              status.isPaused = false;
+              status.currentTime = 0;
+              status.outputFile = null;
+            }
+          } catch (fileError) {
+            console.error("Erro ao verificar arquivo:", fileError);
+          }
+        }
+
+        if (!status.isRecording) {
+          setIsRecording(false);
+          setIsPaused(false);
+          setRecordingTime(0);
+          setOutputFile(null);
+          setElapsedTimeBeforePause(0);
+        } else {
           setIsRecording(status.isRecording);
           setIsPaused(status.isPaused);
           setRecordingTime(status.currentTime || 0);
-          if (status.outputFile) {
-            setOutputFile(status.outputFile);
-          }
+          setOutputFile(status.outputFile);
         }
       } catch (error) {
+        setIsRecording(false);
+        setIsPaused(false);
+        setRecordingTime(0);
+        setOutputFile(null);
+        setElapsedTimeBeforePause(0);
+
         Toast.show({
           type: "error",
-          text1: "Erro ao sincronizar estado",
+          text1: error instanceof Error ? error.message : "Erro",
           text2: "Erro ao sincronizar o estado da gravação.",
         });
       }
@@ -178,14 +206,6 @@ export default function HomeScreen() {
     };
   }, []);
 
-  useEffect(() => {
-    const subscription = AppState.addEventListener(
-      "change",
-      handleAppStateChange
-    );
-    return () => subscription.remove();
-  }, [isRecording, recordingTime]);
-
   const setupApp = async () => {
     await requestPermissions();
     setupAppStateListener();
@@ -204,6 +224,41 @@ export default function HomeScreen() {
           type: "error",
           text1: "Nenhuma gravação",
           text2: "Não foi encontrada gravação para salvar.",
+        });
+        setIsRecording(false);
+        setIsPaused(false);
+        setRecordingTime(0);
+        setOutputFile(null);
+        setElapsedTimeBeforePause(0);
+        return;
+      }
+
+      try {
+        const normalizedPath = filePath.startsWith("file://")
+          ? filePath
+          : `file://${filePath}`;
+        const fileInfo = await FileSystem.getInfoAsync(normalizedPath);
+
+        if (!fileInfo.exists || fileInfo.size === 0) {
+          Toast.show({
+            type: "error",
+            text1: "Arquivo não encontrado",
+            text2: "O arquivo de gravação não existe ou está vazio.",
+          });
+
+          await BackgroundAudioRecorder.resetState();
+          setIsRecording(false);
+          setIsPaused(false);
+          setRecordingTime(0);
+          setOutputFile(null);
+          setElapsedTimeBeforePause(0);
+          return;
+        }
+      } catch (error) {
+        Toast.show({
+          type: "error",
+          text1: "Erro ao verificar arquivo",
+          text2: "Não foi possível verificar o arquivo de gravação.",
         });
         return;
       }
@@ -298,6 +353,7 @@ export default function HomeScreen() {
     statusChangeListenerRef.current =
       BackgroundAudioRecorder.addStatusChangeListener(
         (status: {
+          discardedFromNotification?: boolean;
           isRecording: boolean;
           isPaused: boolean;
           outputFile: string | null;
@@ -322,6 +378,20 @@ export default function HomeScreen() {
             status.currentTime > 0
           ) {
             setRecordingTime(status.currentTime);
+          }
+
+          if (status.discardedFromNotification) {
+            setOutputFile(null);
+            setElapsedTimeBeforePause(0);
+            setRecordingTime(0);
+            setIsPaused(false);
+            setIsRecording(false);
+
+            Toast.show({
+              type: "success",
+              text1: "Gravação descartada",
+              text2: "A gravação foi descartada com sucesso.",
+            });
           }
         }
       );
@@ -352,8 +422,8 @@ export default function HomeScreen() {
         Toast.show({
           type: "error",
           text1: error instanceof Error ? error.message : "Erro",
-          text2: "Erro ao obter status"
-        })
+          text2: "Erro ao obter status",
+        });
       });
   };
 
@@ -395,39 +465,12 @@ export default function HomeScreen() {
     }
   };
 
-  const handleAppStateChange = async (nextAppState: any) => {
-    if (
-      appState.current.match(/inactive|background/) &&
-      nextAppState === "active"
-    ) {
-      if (isRecording || recordingTime > 0) {
-        try {
-          BackgroundAudioRecorder.forceSync();
-
-          const status = await BackgroundAudioRecorder.getStatus();
-
-          setIsRecording(status.isRecording);
-          setIsPaused(status.isPaused);
-          setRecordingTime(status.currentTime);
-          setOutputFile(status.outputFile);
-        } catch (error) {
-          Toast.show({
-            type: "error",
-            text1: error instanceof Error ? error.message : "Erro",
-            text2: "Erro ao sincronizar o estado da gravação.",
-          });
-        }
-      }
-    }
-
-    appState.current = nextAppState;
-  };
-
   const handleDiscard = async () => {
     try {
       setIsLoading(true);
 
       await BackgroundAudioRecorder.forceStopService();
+      await BackgroundAudioRecorder.resetState();
 
       if (outputFile) {
         try {
@@ -456,6 +499,11 @@ export default function HomeScreen() {
       setIsPaused(false);
       setIsRecording(false);
       setShowDiscardModal(false);
+
+      if (cooldownTimeout.current) {
+        clearTimeout(cooldownTimeout.current);
+        cooldownTimeout.current = null;
+      }
 
       setTimeout(() => {
         Toast.show({
@@ -513,16 +561,18 @@ export default function HomeScreen() {
       Toast.show({
         type: "info",
         text1: "Atenção",
-        text2: "É necessário cadastrar um participante antes de gravar vocalizações.",
+        text2:
+          "É necessário cadastrar um participante antes de gravar vocalizações.",
       });
 
       return;
     }
 
-    if (isLoading || isProcessingAction) return;
+    if (isLoading || isProcessingAction || actionCooldown) return;
 
     try {
       setIsProcessingAction(true);
+      setActionCooldown(true);
       setIsLoading(true);
 
       const currentStatus = await BackgroundAudioRecorder.getStatus();
@@ -539,6 +589,14 @@ export default function HomeScreen() {
         setIsRecording(true);
         setIsPaused(false);
       }
+
+      if (cooldownTimeout.current) {
+        clearTimeout(cooldownTimeout.current);
+      }
+
+      cooldownTimeout.current = setTimeout(() => {
+        setActionCooldown(false);
+      }, 1000);
 
       setTimeout(async () => {
         try {
@@ -573,6 +631,27 @@ export default function HomeScreen() {
         text2: "Erro ao controlar a gravação.",
       });
     }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (cooldownTimeout.current) {
+        clearTimeout(cooldownTimeout.current);
+      }
+    };
+  }, []);
+
+  const getButtonStyle = () => {
+    return [
+      styles.controlButton,
+      styles.recordButton,
+      isRecording && !isPaused && styles.recordingButton,
+      (isLoading ||
+        checkingParticipant ||
+        hasParticipant === false ||
+        actionCooldown) &&
+        styles.disabledButton,
+    ];
   };
 
   const closeVocalizationModal = () => {
@@ -700,36 +779,68 @@ export default function HomeScreen() {
       const resetScreenState = async () => {
         await checkParticipant();
 
-        if (!isRecording) {
-          setRecordingTime(0);
-          setElapsedTimeBeforePause(0);
-          setOutputFile(null);
+        try {
+          const status = await BackgroundAudioRecorder.getStatus();
 
-          try {
-            const status = await BackgroundAudioRecorder.getStatus();
+          if (status.isRecording) {
+            if (status.outputFile) {
+              try {
+                const normalizedPath = status.outputFile.startsWith("file://")
+                  ? status.outputFile
+                  : `file://${status.outputFile}`;
+                const fileInfo = await FileSystem.getInfoAsync(normalizedPath);
 
-            if (!status.isRecording) {
-              await BackgroundAudioRecorder.resetState();
-            } else {
-              setIsRecording(status.isRecording);
-              setIsPaused(status.isPaused);
-              setRecordingTime(status.currentTime);
-              setOutputFile(status.outputFile);
+                if (!fileInfo.exists || fileInfo.size === 0) {
+                  await BackgroundAudioRecorder.resetState();
+                  setIsRecording(false);
+                  setIsPaused(false);
+                  setRecordingTime(0);
+                  setOutputFile(null);
+                  setElapsedTimeBeforePause(0);
+                  return;
+                }
+              } catch (error) {
+                await BackgroundAudioRecorder.resetState();
+                setIsRecording(false);
+                setIsPaused(false);
+                setRecordingTime(0);
+                setOutputFile(null);
+                setElapsedTimeBeforePause(0);
+                return;
+              }
             }
-          } catch (error) {
-            Toast.show({
-              type: "error",
-              text1: error instanceof Error ? error.message : "Erro",
-              text2: "Erro ao sincronizar o estado da gravação.",
-            });
+
+            setIsRecording(status.isRecording);
+            setIsPaused(status.isPaused);
+            setRecordingTime(status.currentTime);
+            setOutputFile(status.outputFile);
+          } else {
+            setIsRecording(false);
+            setIsPaused(false);
+            setRecordingTime(0);
+            setOutputFile(null);
+            setElapsedTimeBeforePause(0);
+            await BackgroundAudioRecorder.resetState();
           }
+        } catch (error) {
+          Toast.show({
+            type: "error",
+            text1: error instanceof Error ? error.message : "Erro",
+            text2: "Erro ao sincronizar o estado da gravação.",
+          });
+
+          setIsRecording(false);
+          setIsPaused(false);
+          setRecordingTime(0);
+          setOutputFile(null);
+          setElapsedTimeBeforePause(0);
         }
       };
 
       resetScreenState();
 
       return () => {};
-    }, [isRecording])
+    }, [])
   );
 
   const handleNavigateToParticipantRegistration = async () => {
@@ -742,7 +853,12 @@ export default function HomeScreen() {
     <View style={styles.container}>
       {hasParticipant === false && (
         <View style={styles.warningContainer}>
-          <MaterialIcons name="warning" size={24} color="#FF9800" style={{textAlign: "center"}}/>
+          <MaterialIcons
+            name="warning"
+            size={24}
+            color="#FF9800"
+            style={{ textAlign: "center" }}
+          />
           <Text style={styles.warningText}>
             É necessário cadastrar um participante antes de gravar vocalizações.
           </Text>
@@ -785,14 +901,13 @@ export default function HomeScreen() {
 
         <Pressable
           style={({ pressed }) => [
-            styles.controlButton,
-            styles.recordButton,
-            isRecording && !isPaused && styles.recordingButton,
-            (isLoading || checkingParticipant || hasParticipant === false) && styles.disabledButton,
+            ...getButtonStyle(),
             pressed && styles.buttonPressed,
           ]}
           onPress={handleRecordPress}
-          disabled={isLoading || checkingParticipant || hasParticipant === false}
+          disabled={
+            isLoading || checkingParticipant || hasParticipant === false
+          }
         >
           {isLoading ? (
             <ActivityIndicator color="white" size="large" />
@@ -809,7 +924,12 @@ export default function HomeScreen() {
                 size={40}
                 color="white"
               />
-              <Text style={styles.buttonText}>
+              <Text
+                style={[
+                  styles.buttonText,
+                  actionCooldown && styles.cooldownText,
+                ]}
+              >
                 {isRecording && !isPaused
                   ? "Pausar"
                   : isPaused
@@ -944,6 +1064,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
+  cooldownText: {
+    opacity: 0.7,
+    color: "#999",
+  },
   controlContainer: {
     flexDirection: "row",
     justifyContent: "center",
@@ -1046,4 +1170,4 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textAlign: "center",
   },
-})
+});

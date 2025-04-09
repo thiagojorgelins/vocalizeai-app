@@ -244,7 +244,8 @@ class AudioRecorderService {
             isPaused: false,
             currentTime: 0,
             outputFile: null,
-            previousOutputFile: outputFileCopy
+            previousOutputFile: outputFileCopy,
+            discardedFromNotification: true
           });
         } catch (error) {
           console.error('Error in listener after forceStopService:', error);
@@ -299,6 +300,7 @@ class AudioRecorderService {
       console.error('Erro ao sincronizar status:', error);
     }
   }
+
   async forceSync() {
     if (!BackgroundAudioRecorder) {
       console.error('Native BackgroundAudioRecorder module not available');
@@ -308,13 +310,33 @@ class AudioRecorderService {
     try {
       const status = await BackgroundAudioRecorder.getStatus();
 
+      if (status.outputFile) {
+        try {
+          const normalizedPath = status.outputFile.startsWith('file://')
+            ? status.outputFile
+            : `file://${status.outputFile}`;
+
+          const fileInfo = await FileSystem.getInfoAsync(normalizedPath);
+
+          if (!fileInfo.exists || fileInfo.size === 0) {
+            status.isRecording = false;
+            status.isPaused = false;
+            status.currentTime = 0;
+            status.outputFile = null;
+          }
+        } catch (error) {
+          console.error('Erro ao verificar arquivo durante forceSync:', error);
+          status.isRecording = false;
+          status.isPaused = false;
+          status.currentTime = 0;
+          status.outputFile = null;
+        }
+      }
+
       this._isRecording = status.isRecording;
       this._isPaused = status.isPaused;
-      this._recordingTime = status.currentTime || this._recordingTime;
-
-      if (status.outputFile) {
-        this._outputFile = status.outputFile;
-      }
+      this._recordingTime = status.currentTime || 0;
+      this._outputFile = status.outputFile;
 
       this._statusChangeListeners.forEach(listener => {
         try {
@@ -336,9 +358,12 @@ class AudioRecorderService {
       return false;
     }
   }
+
   _handleRecordingStatusChange(status) {
     const stateChanged = this._isRecording !== status.isRecording ||
       this._isPaused !== status.isPaused;
+
+    const forceUpdate = stateChanged || status.forceUpdate || status.discardedFromNotification;
 
     this._isRecording = status.isRecording;
     this._isPaused = status.isPaused;
@@ -349,19 +374,43 @@ class AudioRecorderService {
 
     if (status.outputFile) {
       this._outputFile = status.outputFile;
+    } else if (status.outputFile === null) {
+      this._outputFile = null;
     }
 
-    if (stateChanged || status.forceUpdate) {
+    if (forceUpdate) {
       this._statusChangeListeners.forEach(listener => {
         try {
           listener({
             isRecording: this._isRecording,
             isPaused: this._isPaused,
             currentTime: this._recordingTime,
-            outputFile: this._outputFile
+            outputFile: this._outputFile,
+            discardedFromNotification: status.discardedFromNotification
           });
         } catch (error) {
           console.error('Error in status change listener:', error);
+        }
+      });
+    }
+
+    if (status.discardedFromNotification) {
+      this._isRecording = false;
+      this._isPaused = false;
+      this._recordingTime = 0;
+      this._outputFile = null;
+
+      this._statusChangeListeners.forEach(listener => {
+        try {
+          listener({
+            isRecording: false,
+            isPaused: false,
+            currentTime: 0,
+            outputFile: null,
+            discardedFromNotification: true
+          });
+        } catch (error) {
+          console.error('Error in notification discard listener:', error);
         }
       });
     }
@@ -458,6 +507,46 @@ class AudioRecorderService {
     }
 
     try {
+      const nativeStatus = await BackgroundAudioRecorder.getStatus();
+
+      if (nativeStatus.outputFile) {
+        try {
+          const normalizedPath = nativeStatus.outputFile.startsWith('file://')
+            ? nativeStatus.outputFile
+            : `file://${nativeStatus.outputFile}`;
+
+          const fileInfo = await FileSystem.getInfoAsync(normalizedPath);
+
+          if (!fileInfo.exists || fileInfo.size === 0) {
+            nativeStatus.isRecording = false;
+            nativeStatus.isPaused = false;
+            nativeStatus.currentTime = 0;
+            nativeStatus.outputFile = null;
+
+            this._isRecording = false;
+            this._isPaused = false;
+            this._recordingTime = 0;
+            this._outputFile = null;
+
+            this._statusChangeListeners.forEach(listener => {
+              try {
+                listener({
+                  isRecording: false,
+                  isPaused: false,
+                  currentTime: 0,
+                  outputFile: null,
+                  forceUpdate: true
+                });
+              } catch (error) {
+                console.error('Error in listener during getStatus:', error);
+              }
+            });
+          }
+        } catch (error) {
+          console.error("Erro ao verificar arquivo em getStatus:", error);
+        }
+      }
+
       return {
         isRecording: this._isRecording,
         isPaused: this._isPaused,
