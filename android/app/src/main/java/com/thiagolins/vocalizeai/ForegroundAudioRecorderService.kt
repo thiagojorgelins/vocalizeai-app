@@ -549,20 +549,16 @@ class ForegroundAudioRecorderService : Service() {
 
     private fun updateNotification() {
         val formattedTime = formatTime(currentRecordingTime)
-        
+
         val intent = packageManager.getLaunchIntentForPackage(packageName)
         val pendingIntent = PendingIntent.getActivity(
             this, 0, intent, 
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        
+
         val stopIntent = Intent(this, ForegroundAudioRecorderService::class.java)
         stopIntent.action = ACTION_STOP_RECORDING
-        val stopPendingIntent = PendingIntent.getService(
-            this, 1, stopIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        
+
         val pauseResumeIntent = Intent(this, ForegroundAudioRecorderService::class.java)
         if (isPaused) {
             pauseResumeIntent.action = ACTION_RESUME_RECORDING
@@ -589,13 +585,7 @@ class ForegroundAudioRecorderService : Service() {
             if (isPaused) "Continuar" else "Pausar", 
             pauseResumePendingIntent
         )
-        
-        builder.addAction(
-            android.R.drawable.ic_menu_close_clear_cancel,
-            "Descartar",
-            stopPendingIntent
-        )
-        
+
         val notification = builder.build()
         val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(NOTIFICATION_ID, notification)
