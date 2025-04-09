@@ -113,6 +113,8 @@ export default function DadosParticipanteScreen() {
         nivel_suporte: parseInt(nivelSuporte),
       };
 
+      setModalVisible(false);
+
       if (participantId) {
         await updateParticipante(participantId, payload);
         Toast.show({
@@ -127,14 +129,15 @@ export default function DadosParticipanteScreen() {
           text1: "Sucesso!",
           text2: "Participante criado com sucesso.",
         });
-        router.replace("/usuario/editar-usuario");
       }
-      setModalVisible(false);
     } catch (error: any) {
       const errorMessage =
         error.response?.data?.detail ||
         error.message ||
         "Erro ao salvar os dados do participante.";
+
+      setModalVisible(false);
+
       Toast.show({
         type: "error",
         text1: "Erro ao salvar dados",
@@ -165,7 +168,14 @@ export default function DadosParticipanteScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <MaterialIcons name="child-care" size={40} color="#2196F3" />
+          <View style={styles.avatarsContainer}>
+            <View style={styles.avatarCircle}>
+              <MaterialIcons name="face" size={30} color="#2196F3" />
+            </View>
+            <View style={styles.avatarCircle}>
+              <MaterialIcons name="face-3" size={30} color="#E91E63" />
+            </View>
+          </View>
           <Text style={styles.title}>
             {participantId ? "Editar Participante" : "Novo Participante"}
           </Text>
@@ -278,7 +288,7 @@ export default function DadosParticipanteScreen() {
       <ConfirmationModal
         visible={isModalVisible}
         onCancel={() => setModalVisible(false)}
-        onConfirm={() => handleSave()}
+        onConfirm={handleSave}
         message={`Deseja confirmar a ${
           participantId ? "atualização" : "criação"
         } dos dados do participante?`}
@@ -289,6 +299,23 @@ export default function DadosParticipanteScreen() {
 }
 
 const styles = StyleSheet.create({
+  avatarsContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+  },
+  avatarCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "#F5F5F5",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+    elevation: 2,
+  },
   container: {
     flex: 1,
     backgroundColor: "#F5F5F5",
