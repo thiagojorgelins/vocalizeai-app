@@ -67,69 +67,67 @@ export default function ConfirmationModal({
       animationType="slide"
       onRequestClose={onCancel}
     >
-      <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-        <Pressable style={styles.overlay} onPress={onCancel}>
-          <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalText}>{message}</Text>
+      <Pressable style={styles.overlay} onPress={onCancel}>
+        <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalText}>{message}</Text>
 
-              {input && (
-                <Input
-                  placeholder={input.placeholder}
-                  value={inputValue}
-                  style={{ marginBottom: 24, width: "100%" }}
-                  onChangeText={(text) => {
-                    setInputValue(text);
-                    if (input.onChangeText) {
-                      input.onChangeText(text);
-                    }
-                    if (localError) setLocalError("");
-                  }}
-                  keyboardType={input.keyboardType || "default"}
-                  error={!!localError}
-                  errorMessage={localError}
-                />
-              )}
+            {input && (
+              <Input
+                placeholder={input.placeholder}
+                value={inputValue}
+                style={{ marginBottom: 24, width: "100%" }}
+                onChangeText={(text) => {
+                  setInputValue(text);
+                  if (input.onChangeText) {
+                    input.onChangeText(text);
+                  }
+                  if (localError) setLocalError("");
+                }}
+                keyboardType={input.keyboardType || "default"}
+                error={!!localError}
+                errorMessage={localError}
+              />
+            )}
 
-              <View style={styles.modalButtons}>
-                <ButtonCustom
-                  title={cancelText}
-                  onPress={onCancel}
-                  color={cancelColor}
-                  style={{ width: "45%" }}
-                  disabled={isLoading}
-                />
-                <ButtonCustom
-                  title={confirmText}
-                  onPress={handleConfirm}
-                  color={confirmColor}
-                  style={{ width: "45%" }}
-                  disabled={confirmDisabled || isLoading}
-                  icon={confirmIcon}
-                />
-              </View>
-
-              {isLoading && (
-                <ActivityIndicator
-                  size="large"
-                  color="#2196F3"
-                  style={styles.loader}
-                />
-              )}
-
-              {showResendButton && (
-                <ButtonCustom
-                  title="Reenviar código"
-                  onPress={onResend}
-                  variant="link"
-                  style={{ marginTop: 20, width: "100%" }}
-                  disabled={isLoading}
-                />
-              )}
+            <View style={styles.modalButtons}>
+              <ButtonCustom
+                title={cancelText}
+                onPress={onCancel}
+                color={cancelColor}
+                style={{ width: "45%" }}
+                disabled={isLoading}
+              />
+              <ButtonCustom
+                title={confirmText}
+                onPress={handleConfirm}
+                color={confirmColor}
+                style={{ width: "45%" }}
+                disabled={confirmDisabled || isLoading}
+                icon={confirmIcon}
+              />
             </View>
-          </TouchableWithoutFeedback>
-        </Pressable>
-      </TouchableWithoutFeedback>
+
+            {isLoading && (
+              <ActivityIndicator
+                size="large"
+                color="#2196F3"
+                style={styles.loader}
+              />
+            )}
+
+            {showResendButton && (
+              <ButtonCustom
+                title="Reenviar código"
+                onPress={onResend}
+                variant="link"
+                style={{ marginTop: 20, width: "100%" }}
+                disabled={isLoading}
+              />
+            )}
+          </View>
+        </TouchableWithoutFeedback>
+      </Pressable>
       <Toast />
     </Modal>
   );
