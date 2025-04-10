@@ -1,6 +1,6 @@
 import ButtonCustom from "@/components/Button";
 import ConfirmationModal from "@/components/ConfirmationModal";
-import Input from "@/components/Inputs/Input";
+import FormUsuario from "@/components/FormUsuario";
 import {
   confirmRegistration,
   doLogout,
@@ -288,44 +288,16 @@ export default function EditarUsuarioScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Dados do Responsável</Text>
 
-            <Input
-              maxLength={50}
-              showCharacterCount={true}
-              label="Nome"
-              placeholder="Informe seu nome"
-              value={nome}
-              onChangeText={setNome}
-              leftIcon={
-                <MaterialIcons name="person-outline" size={20} color="#666" />
-              }
-            />
-
-            <Input
-              label="Email"
-              placeholder="Informe seu email"
-              value={email}
-              showCharacterCount={true}
-              maxLength={80}
-              onChangeText={handleEmailChange}
-              leftIcon={<MaterialIcons name="email" size={20} color="#666" />}
-              keyboardType="email-address"
-              error={!!emailError}
-              errorMessage={emailError}
-            />
-
-            <Input
-              label="Celular"
-              placeholder="Informe seu número de celular"
-              keyboardType="phone-pad"
-              value={celular}
-              maxLength={15}
-              mask="(99) 99999-9999"
-              onChangeText={handleCelularChange}
-              leftIcon={
-                <MaterialIcons name="phone-android" size={20} color="#666" />
-              }
-              error={!!celularError}
-              errorMessage={celularError}
+            <FormUsuario
+              nome={nome}
+              setNome={setNome}
+              email={email}
+              handleEmailChange={handleEmailChange}
+              celular={celular}
+              handleCelularChange={handleCelularChange}
+              emailError={emailError}
+              celularError={celularError}
+              showPasswordFields={false}
             />
           </View>
 
