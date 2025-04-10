@@ -13,10 +13,11 @@ import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   KeyboardAvoidingView,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
-  View
+  View,
 } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import Toast from "react-native-toast-message";
@@ -120,8 +121,9 @@ export default function LoginScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
+          <Text style={styles.title}>Bem vindo ao projeto</Text>
           <View style={styles.logoContainer}>
-          <Text style={styles.logoText}>VocalizeAI</Text>
+            <Text style={styles.logoText}>VocalizeAI</Text>
 
             <LinearGradient
               colors={["#2196F3", "transparent"]}
@@ -130,8 +132,6 @@ export default function LoginScreen() {
               style={styles.underline}
             />
           </View>
-          <Text style={styles.title}>Bem vindo ao Projeto VocalizeAI!</Text>
-          <Text>v.0.0.1</Text>
         </View>
 
         <View style={styles.card}>
@@ -139,8 +139,8 @@ export default function LoginScreen() {
             <Text style={styles.sectionTitle}>Acesse o Aplicativo</Text>
 
             <Input
-              label="Email"
-              placeholder="Informe seu email"
+              label="E-mail"
+              placeholder="Informe seu e-mail"
               value={email}
               showCharacterCount={true}
               maxLength={80}
@@ -185,6 +185,18 @@ export default function LoginScreen() {
             />
           </View>
         </View>
+        <View>
+          <ButtonCustom
+            title="Conheça o nosso projeto"
+            variant="link"
+            onPress={() =>
+              Linking.openURL("https://www.youtube.com/watch?v=wUq2CeCC7CI")
+            }
+          />
+          <Text style={{ textAlign: "center", margin: 8, height: 54 }}>
+            v.0.0.2
+          </Text>
+        </View>
       </ScrollView>
 
       <ConfirmationModal
@@ -219,7 +231,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "700",
     color: "#212121",
     textAlign: "center",
@@ -235,6 +247,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   sectionTitle: {
+    textAlign: "center",
     fontSize: 18,
     fontWeight: "600",
     color: "#424242",
