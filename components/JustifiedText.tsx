@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text, StyleSheet, Platform } from 'react-native';
-import { JustifiedTextProps } from '../types/JustifiedTextProps';
+import { JustifiedTextProps } from '@/types/JustifiedTextProps';
 
 
 export default function JustifiedText({ 

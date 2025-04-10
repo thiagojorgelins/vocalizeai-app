@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { StyleSheet, View } from "react-native";
-import ButtonCustom from "../../components/Button";
+import ButtonCustom from "@/components/Button";
 
 export default function AdminLayout() {
   return (

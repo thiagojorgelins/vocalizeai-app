@@ -1,7 +1,7 @@
 import Select from "@/components/Select";
 import translateVocalization from "@/utils/TranslateVocalization";
 import React from "react";
-import { VocalizationSelectProps } from "../types/VocalizationSelectProps";
+import { VocalizationSelectProps } from "@/types/VocalizationSelectProps";
 
 export default function VocalizationSelect({
   vocalizations,
