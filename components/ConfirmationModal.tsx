@@ -1,16 +1,17 @@
 import { ConfirmationModalProps } from "@/types/ConfirmationModalProps";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Modal,
+  Pressable,
   StyleSheet,
   Text,
   TouchableWithoutFeedback,
   View,
-  ActivityIndicator,
 } from "react-native";
+import Toast from "react-native-toast-message";
 import ButtonCustom from "./Button";
 import Input from "./Inputs/Input";
-import Toast from "react-native-toast-message";
 
 export default function ConfirmationModal({
   visible,
@@ -30,9 +31,9 @@ export default function ConfirmationModal({
   confirmIcon,
   confirmDisabled,
 }: ConfirmationModalProps) {
-  const [inputValue, setInputValue] = React.useState("");
-  const [localError, setLocalError] = React.useState("");
-  
+  const [inputValue, setInputValue] = useState("");
+  const [localError, setLocalError] = useState("");
+
   useEffect(() => {
     if (visible) {
       setInputValue(input?.value || "");
@@ -53,9 +54,9 @@ export default function ConfirmationModal({
       setLocalError("Este campo é obrigatório");
       return;
     }
-    
+
     setLocalError("");
-    
+
     onConfirm(inputValue);
   };
 
@@ -67,11 +68,11 @@ export default function ConfirmationModal({
       onRequestClose={onCancel}
     >
       <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-        <View style={styles.overlay}>
+        <Pressable style={styles.overlay} onPress={onCancel}>
           <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
             <View style={styles.modalContent}>
               <Text style={styles.modalText}>{message}</Text>
-              
+
               {input && (
                 <Input
                   placeholder={input.placeholder}
@@ -89,7 +90,7 @@ export default function ConfirmationModal({
                   errorMessage={localError}
                 />
               )}
-              
+
               <View style={styles.modalButtons}>
                 <ButtonCustom
                   title={cancelText}
@@ -107,15 +108,15 @@ export default function ConfirmationModal({
                   icon={confirmIcon}
                 />
               </View>
-              
+
               {isLoading && (
-                <ActivityIndicator 
-                  size="large" 
-                  color="#2196F3" 
-                  style={styles.loader} 
+                <ActivityIndicator
+                  size="large"
+                  color="#2196F3"
+                  style={styles.loader}
                 />
               )}
-              
+
               {showResendButton && (
                 <ButtonCustom
                   title="Reenviar código"
@@ -127,7 +128,7 @@ export default function ConfirmationModal({
               )}
             </View>
           </TouchableWithoutFeedback>
-        </View>
+        </Pressable>
       </TouchableWithoutFeedback>
       <Toast />
     </Modal>
