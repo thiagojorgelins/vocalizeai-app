@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 
@@ -26,64 +27,68 @@ export default function ModalInfoNiveisAutismo({
       onRequestClose={onClose}
     >
       <Pressable style={styles.modalOverlay} onPress={onClose}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Níveis de Suporte no Autismo</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <MaterialIcons name="close" size={24} color="#666" />
-            </TouchableOpacity>
+        <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                Níveis de Suporte no Autismo
+              </Text>
+              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                <MaterialIcons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalScrollView}>
+              <Text style={styles.modalText}>
+                Os níveis de suporte do autismo são definidos de acordo com a
+                necessidade de apoio que cada pessoa tem. São eles:
+              </Text>
+
+              <View style={styles.levelItem}>
+                <Text style={styles.levelTitle}>Nível 1:</Text>
+                <Text style={styles.levelDesc}>Necessita de pouco apoio</Text>
+              </View>
+
+              <View style={styles.levelItem}>
+                <Text style={styles.levelTitle}>Nível 2:</Text>
+                <Text style={styles.levelDesc}>
+                  Necessita de suporte moderado
+                </Text>
+              </View>
+
+              <View style={styles.levelItem}>
+                <Text style={styles.levelTitle}>Nível 3:</Text>
+                <Text style={styles.levelDesc}>
+                  Necessita de suporte substancial
+                </Text>
+              </View>
+
+              <Text style={styles.modalText}>
+                A classificação dos níveis de suporte é feita de acordo com o
+                Manual Diagnóstico e Estatístico de Transtornos Mentais 5.ª
+                edição ou DSM-5. O DSM-5 é um manual diagnóstico e estatístico
+                feito pela Associação Americana de Psiquiatria para definir como
+                é feito o diagnóstico de transtornos mentais. Usado por
+                psicólogos, fonoaudiólogos, médicos e terapeutas ocupacionais.
+              </Text>
+
+              <TouchableOpacity
+                style={styles.linkButton}
+                onPress={() => {
+                  Linking.openURL(
+                    "https://www.canalautismo.com.br/artigos/os-tres-niveis-de-suporte-no-autismo/#:~:text=Segundo%20o%20Manual%20de%20Diagn%C3%B3stico,para%20pessoas%20de%20sua%20idade"
+                  );
+                  onClose;
+                }}
+              >
+                <Text style={styles.linkButtonText}>
+                  Para mais informações, visite "Os três níveis de suporte no
+                  autismo - Canal Autismo"
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
           </View>
-
-          <ScrollView style={styles.modalScrollView}>
-            <Text style={styles.modalText}>
-              Os níveis de suporte do autismo são definidos de acordo com a
-              necessidade de apoio que cada pessoa tem. São eles:
-            </Text>
-
-            <View style={styles.levelItem}>
-              <Text style={styles.levelTitle}>Nível 1:</Text>
-              <Text style={styles.levelDesc}>Necessita de pouco apoio</Text>
-            </View>
-
-            <View style={styles.levelItem}>
-              <Text style={styles.levelTitle}>Nível 2:</Text>
-              <Text style={styles.levelDesc}>
-                Necessita de suporte moderado
-              </Text>
-            </View>
-
-            <View style={styles.levelItem}>
-              <Text style={styles.levelTitle}>Nível 3:</Text>
-              <Text style={styles.levelDesc}>
-                Necessita de suporte substancial
-              </Text>
-            </View>
-
-            <Text style={styles.modalText}>
-              A classificação dos níveis de suporte é feita de acordo com o
-              Manual Diagnóstico e Estatístico de Transtornos Mentais 5.ª edição
-              ou DSM-5. O DSM-5 é um manual diagnóstico e estatístico feito pela
-              Associação Americana de Psiquiatria para definir como é feito o
-              diagnóstico de transtornos mentais. Usado por psicólogos,
-              fonoaudiólogos, médicos e terapeutas ocupacionais.
-            </Text>
-
-            <TouchableOpacity
-              style={styles.linkButton}
-              onPress={() => {
-                Linking.openURL(
-                  "https://www.canalautismo.com.br/artigos/os-tres-niveis-de-suporte-no-autismo/#:~:text=Segundo%20o%20Manual%20de%20Diagn%C3%B3stico,para%20pessoas%20de%20sua%20idade"
-                );
-                onClose;
-              }}
-            >
-              <Text style={styles.linkButtonText}>
-                Para mais informações, visite "Os três níveis de suporte no
-                autismo - Canal Autismo"
-              </Text>
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
+        </TouchableWithoutFeedback>
       </Pressable>
     </Modal>
   );
