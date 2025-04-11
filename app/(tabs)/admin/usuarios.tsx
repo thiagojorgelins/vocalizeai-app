@@ -128,7 +128,7 @@ export default function UsuariosScreen() {
       const updateData: Usuario = {
         id: selectedUsuario.id,
         nome: nome.trim(),
-        email: selectedUsuario.email,
+        email: email.trim(),
         celular: celular.trim(),
       };
 
