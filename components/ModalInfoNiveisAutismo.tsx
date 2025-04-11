@@ -126,25 +126,27 @@ const styles = StyleSheet.create({
     color: "#212121",
   },
   modalText: {
+    textAlign: "justify",
     fontSize: 16,
     color: "#424242",
     lineHeight: 24,
     marginBottom: 16,
   },
   levelItem: {
+    display: "flex",
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 12,
-    paddingLeft: 8,
+    paddingLeft: 4,
   },
   levelTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "600",
     color: "#212121",
-    marginRight: 8,
+    marginRight: 4,
   },
   levelDesc: {
-    fontSize: 16,
+    fontSize: 14,
     color: "#424242",
   },
   linkButton: {
