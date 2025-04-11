@@ -41,6 +41,23 @@ export const getParticipante = async (participantId: string): Promise<any> => {
   return participant;
 };
 
+export const getAllParticipantes = async (): Promise<any[]> => {
+  try {
+    const token = await getToken();
+    const response = await api.get(`/participantes`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    return response.data;
+  } catch (error: any) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Erro ao buscar participantes.";
+    throw new Error(errorMessage);
+  }
+};
+
 export const updateParticipante = async (
   participantId: string, data: ParticipantePayload): Promise<void> => {
   const token = await getToken();

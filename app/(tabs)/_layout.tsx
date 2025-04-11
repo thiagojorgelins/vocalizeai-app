@@ -91,6 +91,13 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
+          name="admin/participantes"
+          options={{
+            title: "Participantes",
+            href: null,
+          }}
+        />
+        <Tabs.Screen
           name="admin"
           options={{
             title: "Admin",

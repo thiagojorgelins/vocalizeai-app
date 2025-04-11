@@ -15,6 +15,11 @@ export default function AdminLayout() {
         onPress={() => router.push("/admin/usuarios")}
         style={styles.btnSize}
       />
+      <ButtonCustom
+        title="Gerenciar Participantes"
+        onPress={() => router.push("/admin/participantes")}
+        style={styles.btnSize}
+      />
     </View>
   );
 }
