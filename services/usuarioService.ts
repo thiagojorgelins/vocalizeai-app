@@ -4,6 +4,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "./api";
 import { getToken, getUserId } from "./util";
 
+/**
+ * Obtém todos os usuários cadastrados no sistema
+ * @returns Promise que resolve com a lista de usuários
+ * @throws Error se ocorrer um erro durante a busca
+ */
 export const getAllUsers = async (): Promise<any> => {
   try {
     const token = await getToken();
@@ -21,6 +26,11 @@ export const getAllUsers = async (): Promise<any> => {
   }
 }
 
+/**
+ * Obtém os dados do usuário atualmente autenticado
+ * @returns Promise que resolve com os dados do usuário
+ * @throws Error se o usuário não estiver autenticado ou se ocorrer um erro na requisição
+ */
 export const getUser = async (): Promise<any> => {
   try {
     const token = await getToken();
@@ -41,11 +51,46 @@ export const getUser = async (): Promise<any> => {
   }
 };
 
+/**
+ * Obtém os dados de um usuário específico pelo ID
+ * @param userId ID do usuário a ser consultado
+ * @returns Promise que resolve com os dados do usuário
+ * @throws Error se ocorrer um erro durante a busca
+ */
+export const getUserById = async (userId: number): Promise<any> => {
+  try {
+    const token = await getToken();
+
+    const response = await api.get(`/usuarios/${userId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    return response.data;
+  } catch (error: any) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Erro ao buscar dados do usuário.";
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * Valida o formato de um endereço de email
+ * @param email Email a ser validado
+ * @returns true se o email for válido, false caso contrário
+ */
 export const validarEmail = (email: string): boolean => {
   const regexEmail = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
   return regexEmail.test(email);
 };
 
+/**
+ * Atualiza os dados do usuário atual
+ * @param data Dados a serem atualizados (nome, email, celular)
+ * @returns Promise que resolve com o resultado da operação
+ * @throws Error se ocorrer um erro durante a atualização
+ */
 export const updateUser = async (data: UsuarioUpdate): Promise<{
   success: boolean;
   message: string;
@@ -95,6 +140,12 @@ export const updateUser = async (data: UsuarioUpdate): Promise<{
   }
 };
 
+/**
+ * Atualiza os dados de qualquer usuário (função administrativa)
+ * @param data Dados a serem atualizados, incluindo o ID do usuário
+ * @returns Promise que resolve quando a atualização for concluída
+ * @throws Error se o email for inválido ou se ocorrer um erro na requisição
+ */
 export const updateUserAdmin = async (data: UsuarioUpdate): Promise<void> => {
   try {
     if (data.email && !validarEmail(data.email)) {
@@ -117,12 +168,18 @@ export const updateUserAdmin = async (data: UsuarioUpdate): Promise<void> => {
   }
 };
 
+/**
+ * Remove um usuário do sistema
+ * @param id ID do usuário a ser removido
+ * @returns Promise que resolve quando a deleção for concluída
+ * @throws Error se o usuário não estiver autenticado ou se ocorrer um erro na requisição
+ */
 export const deleteUser = async (id: any): Promise<void> => {
   const token = await getToken();
   const userId = await getUserId();
   if (!userId) throw new Error("Usuário não autenticado");
 
-  await api.delete(`/usuarios/${userId}`, {
+  await api.delete(`/usuarios/${id}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
 }

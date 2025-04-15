@@ -3,6 +3,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "./api";
 import { getToken } from "./util";
 
+/**
+ * Cria um novo participante
+ * @param data Objeto contendo os dados do participante
+ * @returns Retorna os dados do participante criado
+ * @throws Lança um erro caso a criação falhe
+ */
 export const createParticipante = async (data: ParticipantePayload): Promise<any> => {
   try {
     const token = await getToken();
@@ -26,6 +32,12 @@ export const createParticipante = async (data: ParticipantePayload): Promise<any
   }
 };
 
+/**
+ * Obtém um participante específico
+ * @param participantId ID do participante
+ * @returns Retorna os dados do participante
+ * @throws Lança um erro caso o ID não seja fornecido ou a requisição falhe
+ */
 export const getParticipante = async (participantId: string): Promise<any> => {
   const token = await getToken();
   if (!participantId) throw new Error("ID do participante não fornecido");
@@ -41,6 +53,11 @@ export const getParticipante = async (participantId: string): Promise<any> => {
   return participant;
 };
 
+/**
+ * Obtém todos os participantes
+ * @returns Retorna uma lista de todos os participantes
+ * @throws Lança um erro caso ocorra alguma falha ao buscar os participantes
+ */
 export const getAllParticipantes = async (): Promise<any[]> => {
   try {
     const token = await getToken();
@@ -58,6 +75,12 @@ export const getAllParticipantes = async (): Promise<any[]> => {
   }
 };
 
+/**
+ * Atualiza os dados de um participante específico
+ * @param participantId ID do participante
+ * @param data Objeto contendo os dados atualizados do participante
+ * @throws Lança um erro caso a atualização falhe
+ */
 export const updateParticipante = async (
   participantId: string, data: ParticipantePayload): Promise<void> => {
   const token = await getToken();
@@ -69,6 +92,11 @@ export const updateParticipante = async (
   await AsyncStorage.setItem("hasParticipant", "true");
 };
 
+/**
+ * Deleta um participante específico
+ * @param participantId ID do participante a ser deletado
+ * @throws Lança um erro caso a exclusão falhe
+ */
 export const deleteParticipante = async (participantId: string): Promise<void> => {
   const token = await getToken();
 
@@ -80,6 +108,10 @@ export const deleteParticipante = async (participantId: string): Promise<void> =
   await AsyncStorage.removeItem("participantId");
 };
 
+/**
+ * Verifica se existe um participante vinculado ao usuário
+ * @returns Retorna true se o participante existir, caso contrário false
+ */
 export const checkParticipantExists = async (): Promise<boolean> => {
   try {
     const hasParticipant = await AsyncStorage.getItem("hasParticipant");

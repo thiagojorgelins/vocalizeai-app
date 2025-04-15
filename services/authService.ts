@@ -8,10 +8,18 @@ import { getUser } from "./usuarioService";
 
 let isUpdatingToken = false;
 
+/**
+ * Define o estado de atualização do token
+ * @param value Valor booleano que indica se o token está em processo de atualização
+ */
 const setIsUpdatingToken = (value: boolean) => {
   isUpdatingToken = value;
 };
 
+/**
+ * Salva os tokens de autenticação no AsyncStorage
+ * @param data Objeto contendo o token de acesso, ID do usuário, tempo de expiração e papel do usuário
+ */
 const saveTokens = async (data: { access_token: string; sub: string, exp: number; role: string }) => {
   const tokenExpiresIn = data.exp * 1000;
   await AsyncStorage.multiSet([
@@ -22,6 +30,10 @@ const saveTokens = async (data: { access_token: string; sub: string, exp: number
   ]);
 };
 
+/**
+ * Atualiza o token de acesso através do endpoint /auth/refresh
+ * @throws Redireciona para a tela de login em caso de falha
+ */
 const updateToken = async (): Promise<void> => {
   try {
     const token = await AsyncStorage.getItem("token");
@@ -61,6 +73,12 @@ const updateToken = async (): Promise<void> => {
   }
 };
 
+/**
+ * Efetua login do usuário
+ * @param email Email do usuário
+ * @param senha Senha do usuário
+ * @returns Retorna uma string que indica o status do login: 'success', 'unverified' ou 'error'
+ */
 const doLogin = async (email: string, senha: string): Promise<string> => {
   try {
     const response = await api.post("/auth/login", { email, senha });
@@ -125,6 +143,10 @@ const doLogin = async (email: string, senha: string): Promise<string> => {
   }
 };
 
+/**
+ * Obtém o tempo de expiração do token
+ * @returns Retorna o tempo de expiração do token em milissegundos
+ */
 const getExpirationTime = async (): Promise<number> => {
   const tempo = await AsyncStorage.getItem("tokenExpires");
   return Number(tempo);
@@ -132,6 +154,10 @@ const getExpirationTime = async (): Promise<number> => {
 
 let tokenUpdateInterval: NodeJS.Timeout | null = null;
 
+/**
+ * Inicia a rotina de atualização do token em intervalos definidos
+ * Se já houver uma rotina em execução, não inicia uma nova
+ */
 const tokenUpdateRoutine = () => {
   if (tokenUpdateInterval === null) {
     setIsUpdatingToken(true);
@@ -142,6 +168,9 @@ const tokenUpdateRoutine = () => {
   }
 };
 
+/**
+ * Para a rotina de atualização do token, caso exista
+ */
 const stopTokenUpdateRoutine = () => {
   if (tokenUpdateInterval) {
     clearInterval(tokenUpdateInterval);
@@ -150,6 +179,10 @@ const stopTokenUpdateRoutine = () => {
   }
 };
 
+/**
+ * Verifica se o usuário já possui um participante registrado
+ * @returns Retorna true se o usuário possui participante registrado, caso contrário retorna false
+ */
 const hasParticipantRegistered = async (): Promise<boolean> => {
   try {
     const hasParticipant = await AsyncStorage.getItem("hasParticipant");
@@ -159,6 +192,16 @@ const hasParticipantRegistered = async (): Promise<boolean> => {
   }
 };
 
+/**
+ * Registra um novo usuário
+ * @param nome Nome do usuário
+ * @param email Email do usuário
+ * @param celular Número de celular do usuário
+ * @param senha Senha do usuário
+ * @param confirmaSenha Confirmação da senha
+ * @param aceiteTermos Booleano indicando se o usuário aceitou os termos
+ * @returns Retorna true se o cadastro foi bem sucedido, caso contrário false
+ */
 const register = async (
   nome: string,
   email: string,
@@ -228,6 +271,10 @@ const register = async (
   }
 };
 
+/**
+ * Envia um novo código de confirmação para o email do usuário
+ * @param email Email do usuário para qual o código será enviado
+ */
 const sendConfirmationCode = async (email: string): Promise<void> => {
   try {
     const response = await api.post('/auth/resend-confirmation-code', { email });
@@ -237,6 +284,11 @@ const sendConfirmationCode = async (email: string): Promise<void> => {
   }
 }
 
+/**
+ * Confirma o registro de um usuário utilizando código de confirmação
+ * @param email Email do usuário
+ * @param codigoConfirmacao Código recebido por email
+ */
 const confirmRegistration = async (email: string, codigoConfirmacao: string): Promise<void> => {
   try {
     const response = await api.post('/auth/confirm-registration', { email, codigo_confirmacao: codigoConfirmacao });
@@ -246,12 +298,20 @@ const confirmRegistration = async (email: string, codigoConfirmacao: string): Pr
   }
 }
 
+/**
+ * Efetua o logout do usuário, removendo dados do AsyncStorage e interrompendo a rotina de atualização do token
+ */
 const doLogout = async (): Promise<void> => {
   await AsyncStorage.multiRemove(["token", "tokenExpires", "role", "usuarioId", "email", "senha", "username", "hasParticipant", "participantId"]);
   stopTokenUpdateRoutine();
   router.push("/auth/login");
 };
 
+/**
+ * Envia solicitação de redefinição de senha
+ * @param email Email do usuário que deseja redefinir a senha
+ * @throws Lança erro caso ocorra falha na solicitação
+ */
 const requestPasswordReset = async (email: string): Promise<void> => {
   try {
     const response = await api.post('/auth/password-reset', { email });
@@ -262,6 +322,12 @@ const requestPasswordReset = async (email: string): Promise<void> => {
   }
 };
 
+/**
+ * Confirma o código de redefinição de senha
+ * @param email Email do usuário
+ * @param codigoConfirmacao Código de confirmação recebido
+ * @throws Lança erro caso ocorra falha na confirmação
+ */
 const confirmPasswordReset = async (email: string, codigoConfirmacao: string): Promise<void> => {
   try {
     const response = await api.post('/auth/confirm-password-reset', { email, codigo_confirmacao: codigoConfirmacao });
@@ -272,6 +338,13 @@ const confirmPasswordReset = async (email: string, codigoConfirmacao: string): P
   }
 };
 
+/**
+ * Redefine a senha do usuário
+ * @param email Email do usuário
+ * @param codigoConfirmacao Código de confirmação recebido
+ * @param novaSenha Nova senha escolhida
+ * @throws Lança erro caso ocorra falha na redefinição
+ */
 const resetPassword = async (email: string, codigoConfirmacao: string, novaSenha: string): Promise<void> => {
   try {
     const response = await api.post('/auth/confirm-password-reset', { email, codigo_confirmacao: codigoConfirmacao, nova_senha: novaSenha });
