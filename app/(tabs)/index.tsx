@@ -70,7 +70,11 @@ export default function HomeScreen() {
       const participantExists = await hasParticipantRegistered();
       setHasParticipant(participantExists);
     } catch (error) {
-      console.error("Erro ao verificar participante:", error);
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Erro ao verificar se o participante está cadastrado.",
+      })
       setHasParticipant(false);
     } finally {
       setCheckingParticipant(false);
@@ -158,7 +162,11 @@ export default function HomeScreen() {
               status.outputFile = null;
             }
           } catch (fileError) {
-            console.error("Erro ao verificar arquivo:", fileError);
+            Toast.show({
+              type: "error",
+              text1: fileError instanceof Error ? fileError.message : "Erro",
+              text2: "Erro ao verificar o arquivo de gravação.",
+            })
           }
         }
 
