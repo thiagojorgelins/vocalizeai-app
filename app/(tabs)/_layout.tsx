@@ -25,7 +25,7 @@ export default function TabLayout() {
           type: "error",
           text1: "Erro ao buscar a role do AsyncStorage",
           text2: "Por favor, faça login novamente",
-        })
+        });
       }
     };
     fetchRole();
@@ -79,14 +79,23 @@ export default function TabLayout() {
         <Tabs.Screen
           name="admin/vocalizacoes"
           options={{
-            title: "Vocalizações",
-            href: null,
+            title: "Rótulos",
+            tabBarIcon: ({ color }) => (
+              <TabBarIcon name="new-label" color={color} />
+            ),
           }}
         />
         <Tabs.Screen
           name="admin/usuarios"
           options={{
             title: "Usuarios",
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="admin/audios/[id]"
+          options={{
+            title: "Detalhes do Áudio",
             href: null,
           }}
         />
@@ -128,7 +137,7 @@ const style = StyleSheet.create({
     justifyContent: "center",
     height: 64,
     padding: 8,
-    backgroundColor: '#FFE',
+    backgroundColor: "#FFE",
     borderTopWidth: 1,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,

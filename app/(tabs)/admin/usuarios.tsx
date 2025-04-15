@@ -9,7 +9,7 @@ import {
 } from "@/services/usuarioService";
 import { Usuario } from "@/types/Usuario";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, router } from "expo-router";
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
@@ -18,9 +18,10 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import Toast from "react-native-toast-message";
+import { UsuarioUpdate } from "../../../types/UsuarioUpdate";
 
 export default function UsuariosScreen() {
   const [usuarios, setUsuarios] = useState<any[]>([]);
@@ -64,7 +65,7 @@ export default function UsuariosScreen() {
         type: "error",
         text1: error instanceof Error ? error.message : "Erro",
         text2: "Não foi possível carregar os usuários",
-      })
+      });
     } finally {
       setIsLoading(false);
     }
@@ -76,7 +77,7 @@ export default function UsuariosScreen() {
     }, [fetchUsuarios])
   );
 
-  const handleEdit = (usuario: any) => {
+  const handleEdit = (usuario: UsuarioUpdate) => {
     setSelectedUsuario(usuario);
     setNome(usuario.nome || "");
     setEmail(usuario.email || "");
@@ -84,6 +85,10 @@ export default function UsuariosScreen() {
     setEmailError("");
     setCelularError("");
     setShowModal(true);
+  };
+
+  const handleViewAudios = (usuario: Usuario) => {
+    router.push(`/admin/audios/${usuario.id}`);
   };
 
   const validateForm = () => {
@@ -94,7 +99,7 @@ export default function UsuariosScreen() {
         type: "error",
         text1: "Erro",
         text2: "O nome é obrigatório",
-      })
+      });
       isValid = false;
     }
 
@@ -103,7 +108,7 @@ export default function UsuariosScreen() {
       Toast.show({
         type: "error",
         text1: "Número de celular inválido",
-      })
+      });
       isValid = false;
     }
 
@@ -112,7 +117,7 @@ export default function UsuariosScreen() {
       Toast.show({
         type: "error",
         text1: "Formato de email inválido",
-      })
+      });
       isValid = false;
     }
 
@@ -138,7 +143,7 @@ export default function UsuariosScreen() {
         type: "success",
         text1: "Sucesso",
         text2: "Dados do usuário atualizados com sucesso!",
-      })
+      });
 
       setShowModal(false);
       await fetchUsuarios();
@@ -147,7 +152,7 @@ export default function UsuariosScreen() {
         type: "error",
         text1: error instanceof Error ? error.message : "Erro",
         text2: "Erro ao atualizar os dados do usuário",
-      })
+      });
     } finally {
       setIsLoading(false);
     }
@@ -163,7 +168,7 @@ export default function UsuariosScreen() {
         type: "success",
         text1: "Sucesso",
         text2: "Usuário deletado com sucesso!",
-      })
+      });
 
       setShowConfirmModal(false);
       fetchUsuarios();
@@ -172,24 +177,32 @@ export default function UsuariosScreen() {
         type: "error",
         text1: error instanceof Error ? error.message : "Erro",
         text2: "Erro ao deletar o usuário",
-      })
+      });
     }
   };
 
-  const renderUsuario = ({ item }: { item: any }) => (
+  const renderUsuario = ({ item }: { item: Usuario }) => (
     <View style={styles.userContainer}>
-      <View style={styles.userInfoContainer}>
+      <TouchableOpacity
+        style={styles.userInfoContainer}
+        onPress={() => handleViewAudios(item)}
+        activeOpacity={0.7}
+      >
         <View style={styles.userHeader}>
           <Text style={styles.userName}>{item.nome}</Text>
           <View style={styles.actionButtons}>
             <TouchableOpacity
-              onPress={() => handleEdit(item)}
+              onPress={(e) => {
+                e.stopPropagation();
+                handleEdit(item);
+              }}
               style={styles.iconButton}
             >
               <MaterialIcons name="edit" size={24} color="#2196F3" />
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => {
+              onPress={(e) => {
+                e.stopPropagation();
                 setSelectedUsuario(item);
                 setShowConfirmModal(true);
               }}
@@ -208,8 +221,12 @@ export default function UsuariosScreen() {
             <MaterialIcons name="phone" size={20} color="#666" />
             <Text style={styles.detailText}>{item.celular}</Text>
           </View>
+          <View style={styles.detailRow}>
+            <MaterialIcons name="headset" size={20} color="#666" />
+            <Text style={styles.detailText}>Toque para ver áudios</Text>
+          </View>
         </View>
-      </View>
+      </TouchableOpacity>
     </View>
   );
 
