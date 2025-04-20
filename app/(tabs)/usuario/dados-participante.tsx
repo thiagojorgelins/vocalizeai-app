@@ -1,7 +1,7 @@
 import ButtonCustom from "@/components/Button";
 import ConfirmationModal from "@/components/ConfirmationModal";
-import Input from "@/components/Inputs/Input";
-import Select from "@/components/Select";
+import FormParticipante from "@/components/FormParticipante";
+import ModalInfoNiveisAutismo from "@/components/ModalInfoNiveisAutismo";
 import { doLogout } from "@/services/authService";
 import {
   createParticipante,
@@ -11,8 +11,9 @@ import {
 import { getUser } from "@/services/usuarioService";
 import { ParticipantePayload } from "@/types/ParticipantePayload";
 import { MaterialIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -36,8 +37,22 @@ export default function DadosParticipanteScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isModalLoading, setIsModalLoading] = useState(false);
   const [idadeError, setIdadeError] = useState("");
+  const [redirectedFromHome, setRedirectedFromHome] = useState(false);
+  const [showSupportModal, setShowSupportModal] = useState(false);
 
   const router = useRouter();
+
+  useEffect(() => {
+    const checkRedirection = async () => {
+      const fromHome = await AsyncStorage.getItem("redirectedFromHome");
+      if (fromHome === "true") {
+        setRedirectedFromHome(true);
+        await AsyncStorage.removeItem("redirectedFromHome");
+      }
+    };
+
+    checkRedirection();
+  }, []);
 
   const loadParticipantData = useCallback(async () => {
     setIsLoading(true);
@@ -77,11 +92,6 @@ export default function DadosParticipanteScreen() {
     }, [loadParticipantData])
   );
 
-  const handleIdadeChange = (text: string) => {
-    setIdade(text);
-    validateIdade(text);
-  };
-
   const validateIdade = (value: string) => {
     if (!value.trim()) {
       setIdadeError("A idade é obrigatória");
@@ -98,11 +108,14 @@ export default function DadosParticipanteScreen() {
     return true;
   };
 
-  async function handleSave() {
+  function handleOpenModal() {
     if (!validateIdade(idade)) {
       return;
     }
+    setModalVisible(true);
+  }
 
+  async function handleSave() {
     try {
       setIsModalLoading(true);
 
@@ -113,28 +126,45 @@ export default function DadosParticipanteScreen() {
         nivel_suporte: parseInt(nivelSuporte),
       };
 
+      setModalVisible(false);
+
       if (participantId) {
         await updateParticipante(participantId, payload);
+        await AsyncStorage.setItem("hasParticipant", "true");
+
         Toast.show({
           type: "success",
           text1: "Sucesso!",
           text2: "Dados do participante atualizados.",
         });
       } else {
-        await createParticipante(payload);
+        const response = await createParticipante(payload);
+        if (response && response.id) {
+          setParticipantId(response.id.toString());
+          await AsyncStorage.setItem("hasParticipant", "true");
+          await AsyncStorage.setItem("participantId", response.id.toString());
+        }
+
         Toast.show({
           type: "success",
           text1: "Sucesso!",
           text2: "Participante criado com sucesso.",
         });
-        router.replace("/usuario/editar-usuario");
+
+        if (redirectedFromHome) {
+          setTimeout(() => {
+            router.replace("/(tabs)");
+          }, 1000);
+        }
       }
-      setModalVisible(false);
     } catch (error: any) {
       const errorMessage =
         error.response?.data?.detail ||
         error.message ||
         "Erro ao salvar os dados do participante.";
+
+      setModalVisible(false);
+
       Toast.show({
         type: "error",
         text1: "Erro ao salvar dados",
@@ -165,91 +195,50 @@ export default function DadosParticipanteScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <MaterialIcons name="child-care" size={40} color="#2196F3" />
+          <View style={styles.avatarsContainer}>
+            <View style={styles.avatarCircle}>
+              <MaterialIcons name="face" size={30} color="#2196F3" />
+            </View>
+            <View style={styles.avatarCircle}>
+              <MaterialIcons name="face-3" size={30} color="#E91E63" />
+            </View>
+          </View>
           <Text style={styles.title}>
             {participantId ? "Editar Participante" : "Novo Participante"}
           </Text>
+
+          {redirectedFromHome && (
+            <View style={styles.warningContainer}>
+              <MaterialIcons name="warning" size={24} color="#FF9800" />
+              <Text style={styles.warningText}>
+                Por favor, preencha os dados do participante antes de gravar as
+                vocalizações.
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.card}>
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Informações do Participante</Text>
-
-            <Input
-              label="Idade"
-              placeholder="Idade do Participante"
-              keyboardType="numeric"
-              maxLength={2}
-              value={idade}
-              onChangeText={handleIdadeChange}
-              leftIcon={<MaterialIcons name="cake" size={20} color="#666" />}
-              error={!!idadeError}
-              errorMessage={idadeError}
-            />
-
-            <Select
-              label="Gênero"
-              selectedValue={genero}
-              onValueChange={setGenero}
-              options={[
-                { label: "Masculino", value: "Masculino" },
-                { label: "Feminino", value: "Feminino" },
-                { label: "Outros", value: "Outros" },
-              ]}
-              leftIcon={<MaterialIcons name="face" size={20} color="#666" />}
-            />
-
-            <Select
-              label="Nível de Suporte"
-              selectedValue={nivelSuporte}
-              onValueChange={setNivelSuporte}
-              options={[
-                { label: "Nível 1", value: "1" },
-                { label: "Nível 2", value: "2" },
-                { label: "Nível 3", value: "3" },
-                { label: "Não sei informar", value: "0" },
-              ]}
-              leftIcon={<MaterialIcons name="star" size={20} color="#666" />}
-            />
-
-            <Select
-              label="Quantidade de Palavras"
-              selectedValue={qtdPalavras}
-              onValueChange={setQtdPalavras}
-              options={[
-                {
-                  label: "Não pronuncia nenhuma palavra",
-                  value: "Não pronuncia nenhuma palavra",
-                },
-                {
-                  label: "Pronuncia entre 1 e 5 palavras",
-                  value: "Pronuncia entre 1 e 5 palavras",
-                },
-                {
-                  label: "Pronuncia entre 6 e 15 palavras",
-                  value: "Pronuncia entre 6 e 15 palavras",
-                },
-                {
-                  label: "Pronuncia 16 ou mais palavras",
-                  value: "Pronuncia 16 ou mais palavras",
-                },
-              ]}
-              leftIcon={
-                <MaterialIcons
-                  name="record-voice-over"
-                  size={20}
-                  color="#666"
-                />
-              }
-            />
-          </View>
+          <FormParticipante
+            idade={idade}
+            setIdade={setIdade}
+            genero={genero}
+            setGenero={setGenero}
+            nivelSuporte={nivelSuporte}
+            setNivelSuporte={setNivelSuporte}
+            qtdPalavras={qtdPalavras}
+            setQtdPalavras={setQtdPalavras}
+            idadeError={idadeError}
+            validateIdade={validateIdade}
+            setShowSupportModal={setShowSupportModal}
+          />
 
           <View style={styles.actions}>
             <ButtonCustom
               title={
                 participantId ? "Atualizar Participante" : "Criar Participante"
               }
-              onPress={() => setModalVisible(true)}
+              onPress={handleOpenModal}
               icon={<MaterialIcons name="save" size={20} color="#FFF" />}
               color="#2196F3"
               style={styles.mainButton}
@@ -274,11 +263,16 @@ export default function DadosParticipanteScreen() {
           </View>
         </View>
       </ScrollView>
-
+      
+      <ModalInfoNiveisAutismo
+        visible={showSupportModal}
+        onClose={() => setShowSupportModal(false)}
+      />
+      
       <ConfirmationModal
         visible={isModalVisible}
         onCancel={() => setModalVisible(false)}
-        onConfirm={() => handleSave()}
+        onConfirm={handleSave}
         message={`Deseja confirmar a ${
           participantId ? "atualização" : "criação"
         } dos dados do participante?`}
@@ -289,6 +283,23 @@ export default function DadosParticipanteScreen() {
 }
 
 const styles = StyleSheet.create({
+  avatarsContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+  },
+  avatarCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "#F5F5F5",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+    elevation: 2,
+  },
   container: {
     flex: 1,
     backgroundColor: "#F5F5F5",
@@ -324,6 +335,22 @@ const styles = StyleSheet.create({
     color: "#212121",
     letterSpacing: 0.25,
   },
+  warningContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFF3E0",
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: "#FFE0B2",
+  },
+  warningText: {
+    fontSize: 14,
+    color: "#E65100",
+    marginLeft: 8,
+    flex: 1,
+  },
   card: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
@@ -331,49 +358,11 @@ const styles = StyleSheet.create({
     padding: 20,
     elevation: 3,
   },
-  section: {
-    gap: 16,
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#424242",
-    marginBottom: 16,
-  },
   actions: {
     gap: 16,
   },
   mainButton: {
     height: 48,
     borderRadius: 24,
-  },
-  linkButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: "#F5F5F5",
-  },
-  linkText: {
-    marginLeft: 8,
-    fontSize: 16,
-    color: "#666",
-    fontWeight: "500",
-  },
-  logoutButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: "#FFF5F5",
-  },
-  logoutText: {
-    marginLeft: 8,
-    fontSize: 16,
-    color: "#D32F2F",
-    fontWeight: "500",
   },
 });

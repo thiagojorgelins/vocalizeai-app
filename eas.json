@@ -4,7 +4,17 @@
       "android": {
         "buildType": "apk",
         "env": {
-          "EXPO_PUBLIC_API_URL": "http://167.172.231.4:8000"
+          "EXPO_PUBLIC_API_URL": "http://167.172.231.4:8000",
+          "EXPO_PUBLIC_API_KEY": "b5694358-82bd-4bf0-81ab-32df891b5f86"
+        }
+      }
+    },
+    "development": {
+      "android": {
+        "buildType": "apk",
+        "env": {
+          "EXPO_PUBLIC_API_URL": "http://167.172.231.4:8001",
+          "EXPO_PUBLIC_API_KEY": "b5694358-82bd-4bf0-81ab-32df891b5f86"
         }
       }
     }

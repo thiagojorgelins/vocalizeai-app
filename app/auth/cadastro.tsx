@@ -1,7 +1,6 @@
 import ButtonCustom from "@/components/Button";
 import ConfirmationModal from "@/components/ConfirmationModal";
-import Input from "@/components/Inputs/Input";
-import InputPassword from "@/components/Inputs/InputPassword";
+import FormUsuario from "@/components/FormUsuario";
 import TermsRadioButton from "@/components/TermsRadioButton";
 import {
   confirmRegistration,
@@ -107,6 +106,15 @@ export default function CadastroUsuarioScreen() {
       setEmailError("Formato de email inválido");
     } else {
       setEmailError("");
+    }
+  };
+
+  const handleCelularChange = (text: string) => {
+    setCelular(text);
+    if (!text || text.length < 11) {
+      setCelularError("Celular inválido");
+    } else {
+      setCelularError("");
     }
   };
 
@@ -226,66 +234,23 @@ export default function CadastroUsuarioScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Informações Pessoais</Text>
 
-            <Input
-              label="Email"
-              placeholder="Informe seu email"
-              value={email}
-              showCharacterCount={true}
-              maxLength={80}
-              onChangeText={handleEmailChange}
-              leftIcon={<MaterialIcons name="email" size={20} color="#666" />}
-              keyboardType="email-address"
-              error={!!emailError}
-              errorMessage={emailError}
-            />
-
-            <Input
-              label="Nome do responsável"
-              placeholder="Informe seu nome"
-              showCharacterCount={true}
-              maxLength={50}
-              value={nome}
-              onChangeText={setNome}
-              leftIcon={<MaterialIcons name="person" size={20} color="#666" />}
-              error={!!nomeError}
-              errorMessage={nomeError}
-            />
-
-            <Input
-              label="Celular"
-              placeholder="Informe seu número de celular"
-              keyboardType="phone-pad"
-              value={celular}
-              maxLength={15}
-              mask="(99) 99999-9999"
-              onChangeText={setCelular}
-              leftIcon={
-                <MaterialIcons name="phone-android" size={20} color="#666" />
-              }
-              error={!!celularError}
-              errorMessage={celularError}
-            />
-
-            <InputPassword
-              label="Senha"
-              placeholder="Informe sua senha"
-              value={senha}
-              onChangeText={setSenha}
-              leftIcon={<MaterialIcons name="lock" size={20} color="#666" />}
-              error={!!senhaError}
-              errorMessage={senhaError}
-            />
-
-            <InputPassword
-              label="Confirmar senha"
-              placeholder="Confirme sua senha"
-              value={confirmaSenha}
-              onChangeText={setConfirmaSenha}
-              leftIcon={
-                <MaterialIcons name="lock-outline" size={20} color="#666" />
-              }
-              error={!!confirmaSenhaError}
-              errorMessage={confirmaSenhaError}
+            <FormUsuario
+              nome={nome}
+              setNome={setNome}
+              email={email}
+              handleEmailChange={handleEmailChange}
+              celular={celular}
+              handleCelularChange={handleCelularChange}
+              emailError={emailError}
+              nomeError={nomeError}
+              celularError={celularError}
+              showPasswordFields={true}
+              senha={senha}
+              setSenha={setSenha}
+              confirmaSenha={confirmaSenha}
+              setConfirmaSenha={setConfirmaSenha}
+              senhaError={senhaError}
+              confirmaSenhaError={confirmaSenhaError}
             />
 
             <View style={styles.termsContainer}>

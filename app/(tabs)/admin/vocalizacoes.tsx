@@ -1,7 +1,7 @@
 import ButtonCustom from "@/components/Button";
 import ConfirmationModal from "@/components/ConfirmationModal";
 import Input from "@/components/Inputs/Input";
-import { getRole } from "@/services/util";
+import { getRole, getUserId } from "@/services/util";
 import {
   createVocalizacoes,
   deleteVocalizacoes,
@@ -11,7 +11,7 @@ import {
 import { Vocalizacao } from "@/types/Vocalizacao";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -25,13 +25,32 @@ import Toast from "react-native-toast-message";
 
 export default function VocalizacoesScreen() {
   const [vocalizacoes, setVocalizacoes] = useState<Vocalizacao[]>([]);
-  const [selectedVocalizacao, setSelectedVocalizacao] = useState<Vocalizacao | null>(null);
+  const [selectedVocalizacao, setSelectedVocalizacao] =
+    useState<Vocalizacao | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [nome, setNome] = useState("");
   const [descricao, setDescricao] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchUserId = async () => {
+      try {
+        const userId = await getUserId();
+        setCurrentUserId(userId);
+      } catch (error) {
+        Toast.show({
+          type: "error",
+          text1: error instanceof Error ? error.message : "Erro",
+          text2: "Não foi possível obter o ID do usuário",
+        });
+      }
+    };
+
+    fetchUserId();
+  }, []);
 
   const checkAdminRole = useCallback(async () => {
     try {
@@ -42,7 +61,7 @@ export default function VocalizacoesScreen() {
         type: "error",
         text1: error instanceof Error ? error.message : "Erro",
         text2: "Não foi possível verificar a permissão de administrador",
-      })
+      });
       setIsAdmin(false);
     }
   }, []);
@@ -57,7 +76,7 @@ export default function VocalizacoesScreen() {
         type: "error",
         text1: error instanceof Error ? error.message : "Erro",
         text2: "Não foi possível carregar as vocalizações",
-      })
+      });
     } finally {
       setIsLoading(false);
     }
@@ -70,13 +89,17 @@ export default function VocalizacoesScreen() {
     }, [])
   );
 
+  const canEditVocalizacao = (vocalizacao: Vocalizacao) => {
+    return isAdmin || (currentUserId && vocalizacao.id_usuario === Number(currentUserId));
+  };
+
   const handleEdit = (vocalizacao: Vocalizacao) => {
-    if (!isAdmin) {
+    if (!canEditVocalizacao(vocalizacao)) {
       Toast.show({
         type: "error",
         text1: "Acesso Negado",
-        text2: "Você não tem permissão para editar vocalizações",
-      })
+        text2: "Você não tem permissão para editar esta vocalização",
+      });
       return;
     }
     setSelectedVocalizacao(vocalizacao);
@@ -91,7 +114,7 @@ export default function VocalizacoesScreen() {
         type: "error",
         text1: "Erro",
         text2: "O nome é obrigatório",
-      })
+      });
       return false;
     }
     if (!descricao.trim()) {
@@ -99,7 +122,7 @@ export default function VocalizacoesScreen() {
         type: "error",
         text1: "Erro",
         text2: "A descrição é obrigatória",
-      })
+      });
       return false;
     }
     return true;
@@ -107,10 +130,16 @@ export default function VocalizacoesScreen() {
 
   const handleSave = async () => {
     if (!validateForm()) return;
-    
+
     setIsLoading(true);
     try {
       if (selectedVocalizacao) {
+        if (!canEditVocalizacao(selectedVocalizacao)) {
+          throw new Error(
+            "Você não tem permissão para editar esta vocalização"
+          );
+        }
+
         await updateVocalizacoes(selectedVocalizacao.id.toString(), {
           ...selectedVocalizacao,
           nome: nome.trim(),
@@ -121,7 +150,7 @@ export default function VocalizacoesScreen() {
           type: "success",
           text1: "Sucesso",
           text2: "Vocalização atualizada com sucesso!",
-        })
+        });
       } else {
         await createVocalizacoes(nome.trim(), descricao.trim());
 
@@ -129,7 +158,7 @@ export default function VocalizacoesScreen() {
           type: "success",
           text1: "Sucesso",
           text2: "Vocalização criada com sucesso!",
-        })
+        });
       }
 
       setShowModal(false);
@@ -139,7 +168,7 @@ export default function VocalizacoesScreen() {
         type: "error",
         text1: error instanceof Error ? error.message : "Erro",
         text2: "Erro ao tentar salvar a vocalização",
-      })
+      });
     } finally {
       setIsLoading(false);
     }
@@ -147,6 +176,15 @@ export default function VocalizacoesScreen() {
 
   const handleDelete = async () => {
     if (!selectedVocalizacao) return;
+
+    if (!isAdmin) {
+      Toast.show({
+        type: "error",
+        text1: "Acesso Negado",
+        text2: "Você não tem permissão para excluir vocalizações",
+      });
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -156,7 +194,7 @@ export default function VocalizacoesScreen() {
         type: "success",
         text1: "Sucesso",
         text2: "Vocalização deletada com sucesso!",
-      })
+      });
 
       setShowConfirmModal(false);
       fetchVocalizacoes();
@@ -165,21 +203,13 @@ export default function VocalizacoesScreen() {
         type: "error",
         text1: error instanceof Error ? error.message : "Erro",
         text2: "Erro ao tentar deletar a vocalização",
-      })
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleAdd = () => {
-    if (!isAdmin) {
-      Toast.show({
-        type: "error",
-        text1: "Acesso Negado",
-        text2: "Você não tem permissão para adicionar vocalizações",
-      })
-      return;
-    }
     setSelectedVocalizacao(null);
     setNome("");
     setDescricao("");
@@ -191,14 +221,16 @@ export default function VocalizacoesScreen() {
       <View style={styles.vocalizationContent}>
         <View style={styles.vocalizationHeader}>
           <Text style={styles.vocalizationName}>{item.nome}</Text>
-          {isAdmin && (
-            <View style={styles.actionButtons}>
-              <TouchableOpacity 
+          <View style={styles.actionButtons}>
+            {canEditVocalizacao(item) && (
+              <TouchableOpacity
                 onPress={() => handleEdit(item)}
                 style={styles.iconButton}
               >
                 <MaterialIcons name="edit" size={24} color="#2196F3" />
               </TouchableOpacity>
+            )}
+            {isAdmin && (
               <TouchableOpacity
                 onPress={() => {
                   setSelectedVocalizacao(item);
@@ -208,10 +240,13 @@ export default function VocalizacoesScreen() {
               >
                 <MaterialIcons name="delete" size={24} color="#F44336" />
               </TouchableOpacity>
-            </View>
-          )}
+            )}
+          </View>
         </View>
         <Text style={styles.vocalizationDescription}>{item.descricao}</Text>
+        {item.id_usuario === Number(currentUserId) && (
+          <Text style={styles.createdByUser}>(Criada por você)</Text>
+        )}
       </View>
     </View>
   );
@@ -226,16 +261,14 @@ export default function VocalizacoesScreen() {
 
   return (
     <View style={styles.container}>
-      {isAdmin && (
-        <ButtonCustom
-          title="Adicionar Rótulo de vocalização"
-          onPress={handleAdd}
-          color="#2196F3"
-          style={styles.addButton}
-          icon={<MaterialIcons name="add" size={12} color="#FFF" />}
-        />
-      )}
-      
+      <ButtonCustom
+        title="Adicionar Rótulo de vocalização"
+        onPress={handleAdd}
+        color="#2196F3"
+        style={styles.addButton}
+        icon={<MaterialIcons name="add" size={12} color="#FFF" />}
+      />
+
       <FlatList
         data={vocalizacoes}
         renderItem={renderVocalizacoes}
@@ -265,7 +298,7 @@ export default function VocalizacoesScreen() {
                   ? "Editar Rótulo de Vocalização"
                   : "Adicionar Rótulo de Vocalização"}
               </Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => setShowModal(false)}
                 style={styles.modalClose}
               >
@@ -318,14 +351,14 @@ export default function VocalizacoesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: "#F5F5F5",
     padding: 20,
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F5F5F5',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F5F5F5",
   },
   addButton: {
     marginBottom: 20,
@@ -335,7 +368,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   vocalizationContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
     marginBottom: 16,
     shadowColor: "#000",
@@ -351,19 +384,19 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   vocalizationHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 12,
   },
   vocalizationName: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#212121',
+    fontWeight: "600",
+    color: "#212121",
     flex: 1,
   },
   actionButtons: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
   },
   iconButton: {
@@ -371,43 +404,49 @@ const styles = StyleSheet.create({
   },
   vocalizationDescription: {
     fontSize: 16,
-    color: '#666',
+    color: "#666",
     lineHeight: 24,
-    flexWrap: 'wrap',
+    flexWrap: "wrap",
+  },
+  createdByUser: {
+    fontSize: 12,
+    color: "#999",
+    marginTop: 8,
+    fontStyle: "italic",
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingVertical: 40,
   },
   emptyText: {
     fontSize: 16,
-    color: '#666',
+    color: "#666",
     marginTop: 12,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: '#FFF',
+    backgroundColor: "#FFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 24,
-    gap: 16
+    gap: 16,
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 20,
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#212121',
+    fontWeight: "600",
+    color: "#212121",
   },
   modalClose: {
     padding: 4,
@@ -415,7 +454,7 @@ const styles = StyleSheet.create({
   descriptionInput: {
     minHeight: 100,
     maxHeight: 200,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
   },
   modalActions: {
     marginTop: 24,

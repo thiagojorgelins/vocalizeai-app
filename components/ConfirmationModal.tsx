@@ -1,16 +1,17 @@
 import { ConfirmationModalProps } from "@/types/ConfirmationModalProps";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Modal,
+  Pressable,
   StyleSheet,
   Text,
   TouchableWithoutFeedback,
   View,
-  ActivityIndicator,
 } from "react-native";
+import Toast from "react-native-toast-message";
 import ButtonCustom from "./Button";
 import Input from "./Inputs/Input";
-import Toast from "react-native-toast-message";
 
 export default function ConfirmationModal({
   visible,
@@ -30,9 +31,9 @@ export default function ConfirmationModal({
   confirmIcon,
   confirmDisabled,
 }: ConfirmationModalProps) {
-  const [inputValue, setInputValue] = React.useState("");
-  const [localError, setLocalError] = React.useState("");
-  
+  const [inputValue, setInputValue] = useState("");
+  const [localError, setLocalError] = useState("");
+
   useEffect(() => {
     if (visible) {
       setInputValue(input?.value || "");
@@ -53,9 +54,9 @@ export default function ConfirmationModal({
       setLocalError("Este campo é obrigatório");
       return;
     }
-    
+
     setLocalError("");
-    
+
     onConfirm(inputValue);
   };
 
@@ -66,69 +67,67 @@ export default function ConfirmationModal({
       animationType="slide"
       onRequestClose={onCancel}
     >
-      <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-        <View style={styles.overlay}>
-          <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalText}>{message}</Text>
-              
-              {input && (
-                <Input
-                  placeholder={input.placeholder}
-                  value={inputValue}
-                  style={{ marginBottom: 24, width: "100%" }}
-                  onChangeText={(text) => {
-                    setInputValue(text);
-                    if (input.onChangeText) {
-                      input.onChangeText(text);
-                    }
-                    if (localError) setLocalError("");
-                  }}
-                  keyboardType={input.keyboardType || "default"}
-                  error={!!localError}
-                  errorMessage={localError}
-                />
-              )}
-              
-              <View style={styles.modalButtons}>
-                <ButtonCustom
-                  title={cancelText}
-                  onPress={onCancel}
-                  color={cancelColor}
-                  style={{ width: "45%" }}
-                  disabled={isLoading}
-                />
-                <ButtonCustom
-                  title={confirmText}
-                  onPress={handleConfirm}
-                  color={confirmColor}
-                  style={{ width: "45%" }}
-                  disabled={confirmDisabled || isLoading}
-                  icon={confirmIcon}
-                />
-              </View>
-              
-              {isLoading && (
-                <ActivityIndicator 
-                  size="large" 
-                  color="#2196F3" 
-                  style={styles.loader} 
-                />
-              )}
-              
-              {showResendButton && (
-                <ButtonCustom
-                  title="Reenviar código"
-                  onPress={onResend}
-                  variant="link"
-                  style={{ marginTop: 20, width: "100%" }}
-                  disabled={isLoading}
-                />
-              )}
+      <Pressable style={styles.overlay} onPress={onCancel}>
+        <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalText}>{message}</Text>
+
+            {input && (
+              <Input
+                placeholder={input.placeholder}
+                value={inputValue}
+                style={{ marginBottom: 24, width: "100%" }}
+                onChangeText={(text) => {
+                  setInputValue(text);
+                  if (input.onChangeText) {
+                    input.onChangeText(text);
+                  }
+                  if (localError) setLocalError("");
+                }}
+                keyboardType={input.keyboardType || "default"}
+                error={!!localError}
+                errorMessage={localError}
+              />
+            )}
+
+            <View style={styles.modalButtons}>
+              <ButtonCustom
+                title={cancelText}
+                onPress={onCancel}
+                color={cancelColor}
+                style={{ width: "45%" }}
+                disabled={isLoading}
+              />
+              <ButtonCustom
+                title={confirmText}
+                onPress={handleConfirm}
+                color={confirmColor}
+                style={{ width: "45%" }}
+                disabled={confirmDisabled || isLoading}
+                icon={confirmIcon}
+              />
             </View>
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
+
+            {isLoading && (
+              <ActivityIndicator
+                size="large"
+                color="#2196F3"
+                style={styles.loader}
+              />
+            )}
+
+            {showResendButton && (
+              <ButtonCustom
+                title="Reenviar código"
+                onPress={onResend}
+                variant="link"
+                style={{ marginTop: 20, width: "100%" }}
+                disabled={isLoading}
+              />
+            )}
+          </View>
+        </TouchableWithoutFeedback>
+      </Pressable>
       <Toast />
     </Modal>
   );

@@ -12,13 +12,14 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-  Image,
   KeyboardAvoidingView,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import LinearGradient from "react-native-linear-gradient";
 import Toast from "react-native-toast-message";
 
 export default function LoginScreen() {
@@ -120,9 +121,17 @@ export default function LoginScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Image source={require("@/assets/images/ic_launcher.png")} />
-          <Text style={styles.title}>Bem vindo ao Projeto VocalizeAI!</Text>
-          <Text>v.0.0.1</Text>
+          <Text style={styles.title}>Bem vindo ao projeto</Text>
+          <View style={styles.logoContainer}>
+            <Text style={styles.logoText}>VocalizeAI</Text>
+
+            <LinearGradient
+              colors={["#2196F3", "transparent"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.underline}
+            />
+          </View>
         </View>
 
         <View style={styles.card}>
@@ -130,8 +139,8 @@ export default function LoginScreen() {
             <Text style={styles.sectionTitle}>Acesse o Aplicativo</Text>
 
             <Input
-              label="Email"
-              placeholder="Informe seu email"
+              label="E-mail"
+              placeholder="Informe seu e-mail"
               value={email}
               showCharacterCount={true}
               maxLength={80}
@@ -176,6 +185,18 @@ export default function LoginScreen() {
             />
           </View>
         </View>
+        <View>
+          <ButtonCustom
+            title="Conheça o nosso projeto"
+            variant="link"
+            onPress={() =>
+              Linking.openURL("https://www.youtube.com/watch?v=wUq2CeCC7CI")
+            }
+          />
+          <Text style={{ textAlign: "center", margin: 8, height: 54 }}>
+            v.1.0.0
+          </Text>
+        </View>
       </ScrollView>
 
       <ConfirmationModal
@@ -210,7 +231,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "700",
     color: "#212121",
     textAlign: "center",
@@ -226,6 +247,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   sectionTitle: {
+    textAlign: "center",
     fontSize: 18,
     fontWeight: "600",
     color: "#424242",
@@ -263,5 +285,29 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
     fontWeight: "500",
+  },
+  underline: {
+    width: "50%",
+    height: 3,
+    marginTop: 8,
+    borderRadius: 2,
+  },
+  logoContainer: {
+    alignItems: "center",
+    width: "100%",
+  },
+  gradient: {
+    borderRadius: 8,
+    padding: 8,
+  },
+  logoText: {
+    fontSize: 32,
+    fontFamily: "Quicksand-Bold",
+    letterSpacing: 1.2,
+    color: "#2196F3",
+    textAlign: "center",
+    textShadowColor: "rgba(0, 0, 0, 0.1)",
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
   },
 });
