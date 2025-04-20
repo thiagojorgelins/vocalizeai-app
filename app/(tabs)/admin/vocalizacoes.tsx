@@ -9,6 +9,7 @@ import {
   updateVocalizacoes,
 } from "@/services/vocalizacoesService";
 import { Vocalizacao } from "@/types/Vocalizacao";
+import translateVocalization from "@/utils/TranslateVocalization";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState, useEffect } from "react";
@@ -89,8 +90,15 @@ export default function VocalizacoesScreen() {
     }, [])
   );
 
+  const getTranslatedName = (name: string) => {
+    return translateVocalization[name] || name;
+  };
+
   const canEditVocalizacao = (vocalizacao: Vocalizacao) => {
-    return isAdmin || (currentUserId && vocalizacao.id_usuario === Number(currentUserId));
+    return (
+      isAdmin ||
+      (currentUserId && vocalizacao.id_usuario === Number(currentUserId))
+    );
   };
 
   const handleEdit = (vocalizacao: Vocalizacao) => {
@@ -220,7 +228,12 @@ export default function VocalizacoesScreen() {
     <View style={styles.vocalizationContainer}>
       <View style={styles.vocalizationContent}>
         <View style={styles.vocalizationHeader}>
-          <Text style={styles.vocalizationName}>{item.nome}</Text>
+          <Text style={styles.vocalizationName}>
+            {getTranslatedName(item.nome)}
+            {item.nome !== getTranslatedName(item.nome) && (
+              <Text style={styles.originalName}> ({item.nome})</Text>
+            )}
+          </Text>
           <View style={styles.actionButtons}>
             {canEditVocalizacao(item) && (
               <TouchableOpacity
@@ -307,12 +320,12 @@ export default function VocalizacoesScreen() {
             </View>
 
             <Input
-              label="Nome"
+              label="Rótulo"
               maxLength={50}
               showCharacterCount={true}
               value={nome}
               onChangeText={setNome}
-              placeholder="Digite o nome da vocalização"
+              placeholder="Digite o rótulo da vocalização"
               editable={!isLoading}
             />
 
@@ -322,7 +335,7 @@ export default function VocalizacoesScreen() {
               onChangeText={setDescricao}
               multiline
               style={styles.descriptionInput}
-              placeholder="Digite a descrição da vocalização"
+              placeholder="Digite a descrição do rótulo da vocalização"
               editable={!isLoading}
             />
 
@@ -394,6 +407,12 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#212121",
     flex: 1,
+  },
+  originalName: {
+    fontSize: 14,
+    fontWeight: "400",
+    color: "#666",
+    fontStyle: "italic",
   },
   actionButtons: {
     flexDirection: "row",
