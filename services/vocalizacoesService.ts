@@ -60,7 +60,7 @@ export const updateVocalizacoes = async (vocalizacaoId: string, data: Vocalizaca
         const role = await getRole()
         const userId = await getUserId()
 
-        if (role != "admin" || data.id_usuario != Number(userId)) {
+        if (role != "admin" && data.id_usuario != Number(userId)) {
             throw new Error("Você não tem permissão para atualizar vocalizações.");
         }
 
