@@ -190,11 +190,11 @@ export default function LoginScreen() {
             title="Conheça o nosso projeto"
             variant="link"
             onPress={() =>
-              Linking.openURL("https://www.youtube.com/watch?v=wUq2CeCC7CI")
+              Linking.openURL("https://vocalizeai.app.br")
             }
           />
           <Text style={{ textAlign: "center", margin: 8, height: 54 }}>
-            v.1.0.1
+            v.1.0.2
           </Text>
         </View>
       </ScrollView>
