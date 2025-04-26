@@ -1,5 +1,5 @@
-import { NativeModules, Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system';
+import { NativeModules, Platform } from 'react-native';
 
 const { FileOperations } = NativeModules;
 
@@ -29,7 +29,7 @@ const FileOperationsModule = {
       }
     }
   },
-  
+
   async getAudioDirectory() {
     if (Platform.OS === 'android') {
       try {
@@ -41,12 +41,12 @@ const FileOperationsModule = {
       }
     } else {
       const dirPath = FileSystem.documentDirectory + 'audio/';
-      
+
       const dirInfo = await FileSystem.getInfoAsync(dirPath);
       if (!dirInfo.exists) {
         await FileSystem.makeDirectoryAsync(dirPath, { intermediates: true });
       }
-      
+
       return dirPath;
     }
   },
@@ -63,11 +63,11 @@ const FileOperationsModule = {
       try {
         const dirPath = FileSystem.documentDirectory + 'audio/';
         const dirInfo = await FileSystem.getInfoAsync(dirPath);
-        
+
         if (dirInfo.exists && dirInfo.isDirectory) {
           const files = await FileSystem.readDirectoryAsync(dirPath);
           let deletedCount = 0;
-          
+
           for (const file of files) {
             try {
               await FileSystem.deleteAsync(dirPath + file, { idempotent: true });
@@ -76,7 +76,7 @@ const FileOperationsModule = {
               console.error(`Failed to delete ${file}:`, error);
             }
           }
-          
+
           return deletedCount;
         }
         return 0;
@@ -84,6 +84,30 @@ const FileOperationsModule = {
         console.error('Error cleaning audio directory with FileSystem:', error);
         return 0;
       }
+    }
+  },
+
+  async moveFile(sourcePath, destPath) {
+    try {
+      await FileSystem.copyAsync({
+        from: sourcePath,
+        to: destPath
+      });
+
+      try {
+        if (Platform.OS === 'android' && FileOperations.deleteFile) {
+          await FileOperations.deleteFile(sourcePath);
+        } else {
+          await FileSystem.deleteAsync(sourcePath, { idempotent: true });
+        }
+      } catch (deleteError) {
+        console.error('Failed to delete source file after copy:', deleteError);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error moving file:', error);
+      return false;
     }
   }
 };

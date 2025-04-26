@@ -65,7 +65,7 @@ export default function AudiosScreen() {
           text1: error instanceof Error ? error.message : "Erro",
           text2: "Erro ao parar a reprodução de áudio",
           type: "error",
-        })
+        });
       }
     }
   };
@@ -90,7 +90,7 @@ export default function AudiosScreen() {
         text1: error instanceof Error ? error.message : "Erro",
         text2: "Erro ao carregar gravações",
         type: "error",
-      })
+      });
     } finally {
       setLoadingVocalizations(false);
     }
@@ -110,7 +110,7 @@ export default function AudiosScreen() {
         text1: "Informação",
         text2: "Não há áudios para excluir",
         type: "info",
-      })
+      });
       setShowConfirmDeleteAllModal(false);
       return;
     }
@@ -126,7 +126,7 @@ export default function AudiosScreen() {
           text1: error instanceof Error ? error.message : "Erro",
           text2: "Erro ao limpar diretório de áudio",
           type: "error",
-        })
+        });
       }
 
       setRecordings([]);
@@ -138,13 +138,13 @@ export default function AudiosScreen() {
         text1: "Sucesso",
         text2: "Todos os áudios foram removidos com sucesso!",
         type: "success",
-      })
+      });
     } catch (error) {
       Toast.show({
         text1: error instanceof Error ? error.message : "Erro",
         text2: "Erro ao excluir todos os áudios",
         type: "error",
-      })
+      });
     } finally {
       setDeletingAll(false);
     }
@@ -165,14 +165,27 @@ export default function AudiosScreen() {
 
       const properUri = uri.startsWith("file://") ? uri : `file://${uri}`;
 
-      const fileInfo = await FileSystem.getInfoAsync(properUri);
+      try {
+        const fileInfo = await FileSystem.getInfoAsync(properUri);
 
-      if (!fileInfo.exists) {
-        throw new Error("Arquivo não existe");
-      }
+        if (!fileInfo.exists) {
+          throw new Error("Arquivo não existe");
+        }
 
-      if (fileInfo.size === 0) {
-        throw new Error("O arquivo está vazio ou corrompido");
+        if (fileInfo.size === 0) {
+          throw new Error("O arquivo está vazio ou corrompido");
+        }
+
+        if (fileInfo.size < 50) {
+          throw new Error("Arquivo de áudio suspeito (muito pequeno)");
+        }
+      } catch (fileError: any) {
+        Toast.show({
+          text1: "Erro ao verificar arquivo",
+          text2: fileError.message || "Erro ao verificar o arquivo de áudio",
+          type: "error",
+        });
+        throw fileError;
       }
 
       const soundObject = new Audio.Sound();
@@ -198,7 +211,9 @@ export default function AudiosScreen() {
               text1: "Erro",
               text2: `Erro de reprodução: ${status.error}`,
               type: "error",
-            })
+            });
+
+            markCorruptedAudio(uri);
           }
         });
 
@@ -211,7 +226,10 @@ export default function AudiosScreen() {
           text1: error instanceof Error ? error.message : "Erro",
           text2: "Erro ao carregar áudio",
           type: "error",
-        })
+        });
+
+        markCorruptedAudio(uri);
+
         if (error instanceof Error) {
           throw new Error(`Não foi possível carregar áudio: ${error.message}`);
         } else {
@@ -226,7 +244,30 @@ export default function AudiosScreen() {
         text1: error instanceof Error ? error.message : "Erro",
         text2: "Erro ao reproduzir áudio",
         type: "error",
-      })
+      });
+    }
+  }
+
+  async function markCorruptedAudio(uri: string) {
+    try {
+      const existingRecordings = await AsyncStorage.getItem("recordings");
+      if (!existingRecordings) return;
+
+      const recordings = JSON.parse(existingRecordings);
+      const updated = recordings.map((rec: { uri: string }) => {
+        if (rec.uri === uri) {
+          return { ...rec, corrupted: true };
+        }
+        return rec;
+      });
+
+      await AsyncStorage.setItem("recordings", JSON.stringify(updated));
+    } catch (error) {
+      Toast.show({
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Erro ao marcar áudio como corrompido",
+        type: "error",
+      });
     }
   }
 
@@ -279,24 +320,25 @@ export default function AudiosScreen() {
                 }
               } catch (fileError) {
                 Toast.show({
-                  text1: fileError instanceof Error ? fileError.message : "Erro",
+                  text1:
+                    fileError instanceof Error ? fileError.message : "Erro",
                   text2: "Erro ao excluir arquivo específico",
                   type: "error",
-                })
+                });
               }
             } else {
               Toast.show({
                 text1: "Erro",
                 text2: "Não foi possível encontrar o arquivo de áudio",
                 type: "error",
-              })
+              });
             }
           } catch (error) {
             Toast.show({
               text1: error instanceof Error ? error.message : "Erro",
               text2: "Erro ao acessar o diretório de áudio",
               type: "error",
-            })
+            });
           }
         } else {
           try {
@@ -307,7 +349,7 @@ export default function AudiosScreen() {
               text1: error instanceof Error ? error.message : "Erro",
               text2: "Erro ao excluir o arquivo de áudio",
               type: "error",
-            })
+            });
           }
         }
       } catch (error) {
@@ -315,7 +357,7 @@ export default function AudiosScreen() {
           text1: error instanceof Error ? error.message : "Erro",
           text2: "Erro ao acessar o diretório de áudio",
           type: "error",
-        })
+        });
       }
 
       const updated = recordings.filter(
@@ -333,20 +375,21 @@ export default function AudiosScreen() {
           text1: "Sucesso",
           text2: "Áudio excluído com sucesso!",
           type: "success",
-        })
+        });
       } else {
         Toast.show({
           text1: "Atenção",
-          text2: "O áudio foi removido da lista, mas não foi possível excluir o arquivo.",
+          text2:
+            "O áudio foi removido da lista, mas não foi possível excluir o arquivo.",
           type: "info",
-        })
+        });
       }
     } catch (error) {
       Toast.show({
         text1: error instanceof Error ? error.message : "Erro",
         text2: "Erro ao excluir o áudio",
         type: "error",
-      })
+      });
     }
   }
 
@@ -376,7 +419,7 @@ export default function AudiosScreen() {
         text1: "Sucesso",
         text2: "Vocalização atualizada com sucesso!",
         type: "success",
-      })
+      });
 
       setShowUpdateConfirmModal(false);
       setShowOptionsModal(false);
@@ -385,7 +428,7 @@ export default function AudiosScreen() {
         text1: error instanceof Error ? error.message : "Erro",
         text2: "Erro ao atualizar vocalização",
         type: "error",
-      })
+      });
     }
   }
 
@@ -399,7 +442,7 @@ export default function AudiosScreen() {
         text1: error instanceof Error ? error.message : "Erro",
         text2: "Erro ao carregar vocalizações",
         type: "error",
-      })
+      });
     } finally {
       setLoadingVocalizations(false);
     }
@@ -428,13 +471,13 @@ export default function AudiosScreen() {
         text1: "Sucesso",
         text2: "Áudio enviado com sucesso!",
         type: "success",
-      })
+      });
     } catch (error) {
       Toast.show({
         text1: error instanceof Error ? error.message : "Erro",
         text2: "Erro ao enviar áudio",
         type: "error",
-      })
+      });
     } finally {
       setSendingAudio(false);
     }
@@ -459,7 +502,7 @@ export default function AudiosScreen() {
         text1: "Informação",
         text2: "Não há áudios pendentes para enviar",
         type: "info",
-      })
+      });
       setShowConfirmBatchSendModal(false);
       return;
     }
@@ -494,7 +537,7 @@ export default function AudiosScreen() {
             text1: error instanceof Error ? error.message : "Erro",
             text2: `Erro ao enviar áudio ${recording.uri}`,
             type: "error",
-          })
+          });
           errorCount++;
         }
       }
@@ -504,26 +547,26 @@ export default function AudiosScreen() {
           text1: "Sucesso",
           text2: "Todos os áudios enviados com sucesso!",
           type: "success",
-        })
+        });
       } else if (successCount > 0 && errorCount > 0) {
         Toast.show({
           text1: "Informação",
           text2: `${successCount} áudio(s) enviado(s) com sucesso e ${errorCount} falha(s)`,
           type: "info",
-        })
+        });
       } else {
         Toast.show({
           text1: "Erro",
           text2: "Nenhum áudio foi enviado",
           type: "error",
-        })
+        });
       }
     } catch (error) {
       Toast.show({
         text1: error instanceof Error ? error.message : "Erro",
         text2: "Erro ao processar o envio em lote",
         type: "error",
-      })
+      });
     } finally {
       setSendingBatch(false);
     }
@@ -871,7 +914,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 10,
     marginBottom: 16,
-    elevation: 2
+    elevation: 2,
   },
   legendItem: {
     flexDirection: "row",
