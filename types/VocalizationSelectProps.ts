@@ -5,4 +5,5 @@ export interface VocalizationSelectProps {
   selectedVocalizationId: number | null;
   onValueChange: (value: number) => void;
   label?: string;
+  placeholder?: string;
 }

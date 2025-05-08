@@ -3,7 +3,7 @@ import VocalizationSelect from "@/components/VocalizationSelect";
 import {
   deleteAudio,
   getAudioPlayUrl,
-  listAudiosByUser,
+  listAudiosByParticipante,
   updateAudio,
 } from "@/services/audioService";
 import { getUserById } from "@/services/usuarioService";
@@ -26,9 +26,10 @@ import {
   View,
 } from "react-native";
 import Toast from "react-native-toast-message";
+import { getParticipantesByUsuario } from "@/services/participanteService";
 
 export default function AudiosUsuarioScreen() {
-  const { id } = useLocalSearchParams();
+  const { id, participanteId, fromScreen } = useLocalSearchParams();
   const userId = typeof id === "string" ? id : "";
 
   const [userName, setUserName] = useState<string>("Usuário");
@@ -49,6 +50,15 @@ export default function AudiosUsuarioScreen() {
   const [updatingAudio, setUpdatingAudio] = useState(false);
   const soundRef = useRef<Audio.Sound | null>(null);
 
+  const [participantes, setParticipantes] = useState<any[]>([]);
+  const [loadingParticipantes, setLoadingParticipantes] = useState(false);
+  const [selectedParticipante, setSelectedParticipante] = useState<any | null>(
+    null
+  );
+  const [viewMode, setViewMode] = useState<"participantes" | "audios">(
+    "participantes"
+  );
+
   const fetchUserName = useCallback(async () => {
     if (!userId) return;
 
@@ -64,30 +74,49 @@ export default function AudiosUsuarioScreen() {
     }
   }, [userId]);
 
-  const fetchAudios = useCallback(async () => {
+  const fetchParticipantes = useCallback(async () => {
     if (!userId) {
       setError("ID do usuário não fornecido");
       return;
     }
 
-    setIsLoading(true);
-    setError(null);
-
+    setLoadingParticipantes(true);
     try {
-      const audiosList = await listAudiosByUser(Number(userId));
-      setAudios(audiosList);
+      const participantesList = await getParticipantesByUsuario(userId);
+      setParticipantes(participantesList);
     } catch (error: any) {
-      setError(error?.message || "Erro ao carregar áudios");
-
       Toast.show({
         type: "error",
-        text1: "Erro ao carregar áudios",
+        text1: "Erro ao carregar participantes",
         text2: error?.message || "Tente novamente mais tarde",
       });
     } finally {
-      setIsLoading(false);
+      setLoadingParticipantes(false);
     }
   }, [userId]);
+
+  const fetchAudiosByParticipante = useCallback(
+    async (participanteId: number) => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const audiosList = await listAudiosByParticipante(participanteId);
+        setAudios(audiosList);
+      } catch (error: any) {
+        setError(error?.message || "Erro ao carregar áudios");
+
+        Toast.show({
+          type: "error",
+          text1: "Erro ao carregar áudios",
+          text2: error?.message || "Tente novamente mais tarde",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    []
+  );
 
   const fetchVocalizations = async () => {
     setLoadingVocalizations(true);
@@ -128,15 +157,27 @@ export default function AudiosUsuarioScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    if (participanteId && participantes.length > 0) {
+      const participant = participantes.find(
+        p => p.id.toString() === participanteId.toString()
+      );
+      if (participant) {
+        handleSelectParticipante(participant);
+      }
+    }
+  }, [participanteId, participantes]);
+
   useFocusEffect(
     useCallback(() => {
       fetchUserName();
-      fetchAudios();
+      fetchParticipantes();
       fetchVocalizations();
+
       return () => {
         stopAudioPlayback();
       };
-    }, [fetchUserName, fetchAudios])
+    }, [fetchUserName, fetchParticipantes])
   );
 
   const handleDeleteAudio = async () => {
@@ -157,7 +198,10 @@ export default function AudiosUsuarioScreen() {
 
       setShowConfirmModal(false);
       setShowOptionsModal(false);
-      fetchAudios();
+
+      if (selectedParticipante) {
+        fetchAudiosByParticipante(selectedParticipante.id);
+      }
     } catch (error: any) {
       Toast.show({
         type: "error",
@@ -189,7 +233,6 @@ export default function AudiosUsuarioScreen() {
         throw new Error("Vocalização não encontrada");
       }
 
-      // Chamada para API que atualizará o nome do arquivo no S3 e no banco
       await updateAudio(selectedAudio.id, {
         id_vocalizacao: selectedVocalizationId,
       });
@@ -201,8 +244,10 @@ export default function AudiosUsuarioScreen() {
 
       setShowUpdateConfirmModal(false);
       setShowOptionsModal(false);
-      // Recarregar a lista de áudios para obter o nome atualizado
-      await fetchAudios();
+
+      if (selectedParticipante) {
+        fetchAudiosByParticipante(selectedParticipante.id);
+      }
     } catch (error) {
       Toast.show({
         type: "error",
@@ -216,13 +261,11 @@ export default function AudiosUsuarioScreen() {
 
   const handlePlayAudio = async (audioId: number) => {
     try {
-      // Se já está tocando o mesmo áudio, parar
       if (playingAudioId === audioId && soundRef.current) {
         await stopAudioPlayback();
         return;
       }
 
-      // Se está tocando outro áudio, parar primeiro
       if (soundRef.current) {
         await stopAudioPlayback();
       }
@@ -260,6 +303,12 @@ export default function AudiosUsuarioScreen() {
     setSelectedAudio(audio);
     setSelectedVocalizationId(audio.id_vocalizacao);
     setShowOptionsModal(true);
+  };
+
+  const handleSelectParticipante = (participante: any) => {
+    setSelectedParticipante(participante);
+    fetchAudiosByParticipante(participante.id);
+    setViewMode("audios");
   };
 
   const formatDate = (dateStr: string) => {
@@ -322,6 +371,32 @@ export default function AudiosUsuarioScreen() {
     );
   };
 
+  const renderParticipanteItem = ({ item }: { item: any }) => {
+    return (
+      <TouchableOpacity onPress={() => handleSelectParticipante(item)}>
+        <View style={styles.participanteContainer}>
+          <View style={styles.avatarContainer}>
+            <MaterialIcons name="person" size={30} color="#2196F3" />
+          </View>
+          <View style={styles.participanteInfo}>
+            <Text style={styles.participanteName}>
+              {item.nome || `Participante ${item.id}`}
+            </Text>
+            <Text style={styles.participanteDetails}>
+              {item.genero}, {item.idade} anos
+            </Text>
+            <Text style={styles.participanteDetails}>
+              {item.nivel_suporte === 0
+                ? "Nível não informado"
+                : `Nível ${item.nivel_suporte}`}
+            </Text>
+          </View>
+          <MaterialIcons name="chevron-right" size={24} color="#666" />
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
   const ErrorView = () => (
     <View style={styles.errorContainer}>
       <MaterialIcons name="error-outline" size={48} color="#F44336" />
@@ -329,7 +404,11 @@ export default function AudiosUsuarioScreen() {
       <View style={styles.errorButtonRow}>
         <TouchableOpacity
           style={styles.retryButton}
-          onPress={fetchAudios}
+          onPress={() =>
+            viewMode === "participantes"
+              ? fetchParticipantes()
+              : fetchAudiosByParticipante(selectedParticipante?.id)
+          }
           disabled={isLoading}
         >
           <Text style={styles.retryButtonText}>Tentar novamente</Text>
@@ -337,7 +416,18 @@ export default function AudiosUsuarioScreen() {
 
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => {
+            if (viewMode === "audios") {
+              setViewMode("participantes");
+              setSelectedParticipante(null);
+            } else if (fromScreen === "usuarios") {
+              router.push("/admin/usuarios");
+            } else if (fromScreen === "participantes") {
+              router.push("/(tabs)/admin/participantes");
+            } else {
+              router.back();
+            }
+          }}
         >
           <Text style={styles.backButtonText}>Voltar</Text>
         </TouchableOpacity>
@@ -345,18 +435,83 @@ export default function AudiosUsuarioScreen() {
     </View>
   );
 
+  const renderHeader = () => {
+    if (viewMode === "participantes") {
+      return (
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backIcon}
+            onPress={() => {
+              if (fromScreen === "usuarios") {
+                router.push("/admin/usuarios");
+              } else if (fromScreen === "participantes") {
+                router.push("/(tabs)/admin/participantes");
+              } else {
+                router.back();
+              }
+            }}
+          >
+            <MaterialIcons name="arrow-back" size={24} color="#212121" />
+          </TouchableOpacity>
+          <Text style={styles.headerText}>Participantes de {userName}</Text>
+        </View>
+      );
+    } else {
+      return (
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backIcon}
+            onPress={() => {
+              setViewMode("participantes");
+              setSelectedParticipante(null);
+            }}
+          >
+            <MaterialIcons name="arrow-back" size={24} color="#212121" />
+          </TouchableOpacity>
+          <Text style={styles.headerText}>
+            Áudios de {selectedParticipante?.nome || "Participante"}
+          </Text>
+        </View>
+      );
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backIcon} onPress={() => router.back()}>
-          <MaterialIcons name="arrow-back" size={24} color="#212121" />
-        </TouchableOpacity>
-        <Text style={styles.headerText}>
-          Áudios do Participante de {userName}
-        </Text>
-      </View>
+      {renderHeader()}
 
-      {isLoading && audios.length === 0 ? (
+      {viewMode === "participantes" ? (
+        loadingParticipantes ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#2196F3" />
+            <Text style={styles.loadingText}>Carregando participantes...</Text>
+          </View>
+        ) : error ? (
+          <ErrorView />
+        ) : (
+          <FlatList
+            data={participantes}
+            renderItem={renderParticipanteItem}
+            keyExtractor={(item) => `participante-${item.id}`}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <MaterialIcons name="people" size={48} color="#666" />
+                <Text style={styles.emptyText}>
+                  Não há participantes cadastrados para este usuário
+                </Text>
+              </View>
+            }
+            contentContainerStyle={
+              participantes.length === 0
+                ? { flex: 1, justifyContent: "center" }
+                : styles.listContainer
+            }
+            refreshing={loadingParticipantes}
+            onRefresh={fetchParticipantes}
+          />
+        )
+      ) : 
+      isLoading && audios.length === 0 ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#2196F3" />
           <Text style={styles.loadingText}>Carregando áudios...</Text>
@@ -372,7 +527,7 @@ export default function AudiosUsuarioScreen() {
             <View style={styles.emptyContainer}>
               <MaterialIcons name="audiotrack" size={48} color="#666" />
               <Text style={styles.emptyText}>
-                Não há áudios para este usuário
+                Não há áudios para este participante
               </Text>
             </View>
           }
@@ -382,7 +537,7 @@ export default function AudiosUsuarioScreen() {
               : styles.listContainer
           }
           refreshing={isLoading}
-          onRefresh={fetchAudios}
+          onRefresh={() => fetchAudiosByParticipante(selectedParticipante?.id)}
         />
       )}
 
@@ -456,7 +611,9 @@ export default function AudiosUsuarioScreen() {
                 <View style={styles.infoRow}>
                   <MaterialIcons name="person" size={20} color="#666" />
                   <Text style={styles.infoText}>
-                    ID Participante: {selectedAudio.id_participante}
+                    Participante:{" "}
+                    {selectedParticipante?.nome ||
+                      `ID: ${selectedAudio.id_participante}`}
                   </Text>
                 </View>
               </View>
@@ -580,6 +737,44 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+  },
+  participanteContainer: {
+    flexDirection: "row",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    marginBottom: 12,
+    padding: 16,
+    alignItems: "center",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  avatarContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "#E3F2FD",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 16,
+  },
+  participanteInfo: {
+    flex: 1,
+  },
+  participanteName: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#212121",
+    marginBottom: 4,
+  },
+  participanteDetails: {
+    fontSize: 14,
+    color: "#666666",
   },
   iconContainer: {
     marginRight: 12,

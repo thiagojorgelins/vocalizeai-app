@@ -11,8 +11,13 @@ export default function Select({
   options,
   style,
   leftIcon,
+  placeholder,
 }: SelectProps) {
   const pickerContainerStyle = [styles.pickerContainer, style];
+
+  const pickerOptions = placeholder
+    ? [{ label: placeholder, value: "" }, ...options]
+    : options;
 
   return (
     <View style={styles.container}>
@@ -27,12 +32,12 @@ export default function Select({
             dropdownIconColor="#666"
             itemStyle={styles.pickerItem}
           >
-            {options.map((option) => (
+            {pickerOptions.map((option) => (
               <Picker.Item
                 key={option.value}
                 label={option.label}
                 value={option.value}
-                color="#424242"
+                color={option.value === "" ? "#999" : "#424242"}
               />
             ))}
           </Picker>

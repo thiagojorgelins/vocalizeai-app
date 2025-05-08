@@ -54,6 +54,35 @@ export const getParticipante = async (participantId: string): Promise<any> => {
 };
 
 /**
+ * Obtém todos os participantes de um usuário específico
+ * @param usuarioId ID do usuário
+ * @returns Retorna uma lista de todos os participantes do usuário
+ * @throws Lança um erro caso ocorra alguma falha ao buscar os participantes
+ */
+export const getParticipantesByUsuario = async (usuarioId: string): Promise<any[]> => {
+  try {
+    const token = await getToken();
+    const response = await api.get(`/participantes/usuario/${usuarioId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    
+    if (response.data && response.data.length > 0) {
+      await AsyncStorage.setItem("hasParticipant", "true");
+    } else {
+      await AsyncStorage.setItem("hasParticipant", "false");
+    }
+    
+    return response.data;
+  } catch (error: any) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Erro ao buscar participantes do usuário.";
+    throw new Error(errorMessage);
+  }
+};
+
+/**
  * Obtém todos os participantes
  * @returns Retorna uma lista de todos os participantes
  * @throws Lança um erro caso ocorra alguma falha ao buscar os participantes
@@ -114,9 +143,23 @@ export const deleteParticipante = async (participantId: string): Promise<void> =
  */
 export const checkParticipantExists = async (): Promise<boolean> => {
   try {
-    const hasParticipant = await AsyncStorage.getItem("hasParticipant");
-    return hasParticipant === "true";
+    const hasParticipantStorage = await AsyncStorage.getItem("hasParticipant");
+    
+    if (hasParticipantStorage === "true" || hasParticipantStorage === "false") {
+      return hasParticipantStorage === "true";
+    }
+    
+    const userId = await AsyncStorage.getItem("userId");
+    if (userId) {
+      const participantes = await getParticipantesByUsuario(userId);
+      const hasParticipants = participantes && participantes.length > 0;
+      await AsyncStorage.setItem("hasParticipant", hasParticipants ? "true" : "false");
+      return hasParticipants;
+    }
+    
+    return false;
   } catch (error) {
+    console.error("Erro ao verificar participante:", error);
     return false;
   }
 };
