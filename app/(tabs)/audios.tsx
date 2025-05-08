@@ -18,15 +18,22 @@ import {
   FlatList,
   Modal,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 import Toast from "react-native-toast-message";
+import ParticipanteSelector from "@/components/ParticipanteSelect";
+import { getParticipantesByUsuario } from "@/services/participanteService";
+import ParticipanteSelect from "@/components/ParticipanteSelect";
 
 export default function AudiosScreen() {
   const [recordings, setRecordings] = useState<AudioRecording[]>([]);
+  const [filteredRecordings, setFilteredRecordings] = useState<
+    AudioRecording[]
+  >([]);
   const [playingUri, setPlayingUri] = useState<string | null>(null);
   const [selectedRecording, setSelectedRecording] =
     useState<AudioRecording | null>(null);
@@ -46,12 +53,75 @@ export default function AudiosScreen() {
   const [showConfirmDeleteAllModal, setShowConfirmDeleteAllModal] =
     useState(false);
   const [deletingAll, setDeletingAll] = useState(false);
+  const [participantes, setParticipantes] = useState<any[]>([]);
+  const [selectedAudioParticipanteId, setSelectedAudioParticipanteId] =
+    useState<number | null>(null);
+  const [loadingParticipantes, setLoadingParticipantes] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterParticipanteId, setFilterParticipanteId] = useState<
+    number | null
+  >(null);
+  const [filterVocalizacaoId, setFilterVocalizacaoId] = useState<number | null>(
+    null
+  );
+  const [filterStatus, setFilterStatus] = useState<string | null>(null);
+
+  const loadParticipantes = async () => {
+    setLoadingParticipantes(true);
+    try {
+      const userId = await AsyncStorage.getItem("userId");
+      if (userId) {
+        const data = await getParticipantesByUsuario(userId);
+        setParticipantes(data);
+      }
+    } catch (error: any) {
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Erro ao carregar participantes do usuário",
+      });
+    } finally {
+      setLoadingParticipantes(false);
+    }
+  };
 
   useEffect(() => {
     return () => {
       stopAudioPlayback();
     };
   }, []);
+
+  useEffect(() => {
+    applyFilters();
+  }, [filterParticipanteId, filterVocalizacaoId, filterStatus, recordings]);
+
+  const applyFilters = () => {
+    let result = [...recordings];
+
+    if (filterParticipanteId !== null) {
+      result = result.filter(
+        (recording) => recording.participanteId === filterParticipanteId
+      );
+    }
+
+    if (filterVocalizacaoId !== null) {
+      result = result.filter(
+        (recording) => recording.vocalizationId === filterVocalizacaoId
+      );
+    }
+
+    if (filterStatus !== null) {
+      result = result.filter((recording) => recording.status === filterStatus);
+    }
+
+    setFilteredRecordings(result);
+  };
+
+  const clearFilters = () => {
+    setFilterParticipanteId(null);
+    setFilterVocalizacaoId(null);
+    setFilterStatus(null);
+  };
 
   const stopAudioPlayback = async () => {
     if (soundRef.current) {
@@ -73,6 +143,8 @@ export default function AudiosScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchRecordings();
+      loadParticipantes();
+      fetchVocalizations();
       return () => {
         stopAudioPlayback();
       };
@@ -83,7 +155,14 @@ export default function AudiosScreen() {
     try {
       const storedRecordings = await AsyncStorage.getItem("recordings");
       if (storedRecordings) {
-        setRecordings(JSON.parse(storedRecordings));
+        const parsedRecordings = JSON.parse(storedRecordings).map(
+          (rec: { status: any }) => ({
+            ...rec,
+            status: rec.status || "pending",
+          })
+        );
+        setRecordings(parsedRecordings);
+        setFilteredRecordings(parsedRecordings);
       }
     } catch (error) {
       Toast.show({
@@ -95,6 +174,20 @@ export default function AudiosScreen() {
       setLoadingVocalizations(false);
     }
   }
+
+  const getParticipanteName = (participanteId: number | null) => {
+    if (!participanteId) return "Não definido";
+
+    const participante = participantes.find((p) => p.id === participanteId);
+    return participante ? participante.nome : `Participante ${participanteId}`;
+  };
+
+  const getVocalizationName = (vocalizationId: number) => {
+    const vocalization = vocalizations.find((v) => v.id === vocalizationId);
+    return vocalization
+      ? translateVocalization[vocalization.nome] || vocalization.nome
+      : "Não definido";
+  };
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -130,6 +223,7 @@ export default function AudiosScreen() {
       }
 
       setRecordings([]);
+      setFilteredRecordings([]);
       await AsyncStorage.setItem("recordings", JSON.stringify([]));
 
       setShowConfirmDeleteAllModal(false);
@@ -407,6 +501,7 @@ export default function AudiosScreen() {
             ...rec,
             vocalizationId: selectedVocalizationId,
             vocalizationName: vocalization?.nome || "",
+            participanteId: selectedAudioParticipanteId,
           };
         }
         return rec;
@@ -417,7 +512,7 @@ export default function AudiosScreen() {
 
       Toast.show({
         text1: "Sucesso",
-        text2: "Vocalização atualizada com sucesso!",
+        text2: "Dados do áudio atualizados com sucesso!",
         type: "success",
       });
 
@@ -426,7 +521,7 @@ export default function AudiosScreen() {
     } catch (error) {
       Toast.show({
         text1: error instanceof Error ? error.message : "Erro",
-        text2: "Erro ao atualizar vocalização",
+        text2: "Erro ao atualizar dados do áudio",
         type: "error",
       });
     }
@@ -449,14 +544,31 @@ export default function AudiosScreen() {
   }
 
   async function handleUpload(idVocalizacao: number, fileUri: string) {
+    if (!selectedAudioParticipanteId) {
+      Toast.show({
+        type: "error",
+        text1: "Participante não selecionado",
+        text2: "Por favor, selecione um participante para enviar o áudio.",
+      });
+      return;
+    }
+
     setSendingAudio(true);
     try {
-      await uploadAudioFile(idVocalizacao, fileUri);
+      await uploadAudioFile(
+        idVocalizacao,
+        fileUri,
+        selectedAudioParticipanteId
+      );
 
       if (selectedRecording) {
         const updateRecordings = recordings.map((rec) => {
           if (rec.timestamp === selectedRecording.timestamp) {
-            return { ...rec, status: "sent" };
+            return {
+              ...rec,
+              status: "sent",
+              participanteId: selectedAudioParticipanteId,
+            };
           }
           return rec;
         });
@@ -468,15 +580,15 @@ export default function AudiosScreen() {
         setShowOptionsModal(false);
       }
       Toast.show({
+        type: "success",
         text1: "Sucesso",
         text2: "Áudio enviado com sucesso!",
-        type: "success",
       });
     } catch (error) {
       Toast.show({
+        type: "error",
         text1: error instanceof Error ? error.message : "Erro",
         text2: "Erro ao enviar áudio",
-        type: "error",
       });
     } finally {
       setSendingAudio(false);
@@ -489,6 +601,7 @@ export default function AudiosScreen() {
     }
     setSelectedRecording(rec);
     setSelectedVocalizationId(rec.vocalizationId);
+    setSelectedAudioParticipanteId(rec.participanteId || null);
     setShowOptionsModal(true);
   }
 
@@ -499,9 +612,9 @@ export default function AudiosScreen() {
 
     if (pendingRecordings.length === 0) {
       Toast.show({
+        type: "info",
         text1: "Informação",
         text2: "Não há áudios pendentes para enviar",
-        type: "info",
       });
       setShowConfirmBatchSendModal(false);
       return;
@@ -517,7 +630,22 @@ export default function AudiosScreen() {
     try {
       for (const recording of pendingRecordings) {
         try {
-          await uploadAudioFile(recording.vocalizationId, recording.uri);
+          if (!recording.participanteId) {
+            Toast.show({
+              type: "error",
+              text1: "Erro",
+              text2: `Áudio sem participante definido. Edite o áudio para adicionar um participante.`,
+            });
+            errorCount++;
+            continue;
+          }
+
+          await uploadAudioFile(
+            recording.vocalizationId,
+            recording.uri,
+            recording.participanteId
+          );
+
           successCount++;
 
           updatedRecordingsList = updatedRecordingsList.map((rec) => {
@@ -534,9 +662,9 @@ export default function AudiosScreen() {
           );
         } catch (error) {
           Toast.show({
+            type: "error",
             text1: error instanceof Error ? error.message : "Erro",
             text2: `Erro ao enviar áudio ${recording.uri}`,
-            type: "error",
           });
           errorCount++;
         }
@@ -544,28 +672,28 @@ export default function AudiosScreen() {
 
       if (successCount > 0 && errorCount === 0) {
         Toast.show({
+          type: "success",
           text1: "Sucesso",
           text2: "Todos os áudios enviados com sucesso!",
-          type: "success",
         });
       } else if (successCount > 0 && errorCount > 0) {
         Toast.show({
+          type: "info",
           text1: "Informação",
           text2: `${successCount} áudio(s) enviado(s) com sucesso e ${errorCount} falha(s)`,
-          type: "info",
         });
       } else {
         Toast.show({
+          type: "error",
           text1: "Erro",
           text2: "Nenhum áudio foi enviado",
-          type: "error",
         });
       }
     } catch (error) {
       Toast.show({
+        type: "error",
         text1: error instanceof Error ? error.message : "Erro",
         text2: "Erro ao processar o envio em lote",
-        type: "error",
       });
     } finally {
       setSendingBatch(false);
@@ -579,6 +707,7 @@ export default function AudiosScreen() {
   const renderRecording = ({ item }: { item: AudioRecording }) => {
     const isSent = item.status === "sent";
     const isPlaying = playingUri === item.uri;
+    const participanteName = getParticipanteName(item.participanteId ?? null);
 
     return (
       <TouchableOpacity onPress={() => handlePressRecording(item)}>
@@ -598,19 +727,26 @@ export default function AudiosScreen() {
 
           <View style={styles.recordingInfo}>
             <Text
-              style={[styles.recordingName, isSent && styles.sentText]}
-              numberOfLines={1}
-            >
-              {item.uri.split("/").pop()?.split("_")[1] || "Gravação"}
-            </Text>
-
-            <Text
               style={[styles.recordingType, isSent && styles.sentText]}
               numberOfLines={1}
             >
               {translateVocalization[item.vocalizationName] ||
                 item.vocalizationName}
             </Text>
+
+            <View style={styles.participanteRow}>
+              <MaterialIcons
+                name="person"
+                size={12}
+                color={isSent ? "white" : "#888"}
+                style={styles.participanteIcon}
+              />
+              <Text
+                style={[styles.participanteName, isSent && styles.sentText]}
+              >
+                {participanteName}
+              </Text>
+            </View>
 
             <Text style={[styles.recordingDate, isSent && styles.sentText]}>
               {new Date(item.timestamp).toLocaleString("pt-BR")}
@@ -643,14 +779,45 @@ export default function AudiosScreen() {
 
   const renderLegend = () => (
     <View style={styles.legendContainer}>
-      <View style={styles.legendItem}>
+      <TouchableOpacity
+        style={[
+          styles.legendItem,
+          filterStatus === "pending" && styles.legendItemActive,
+        ]}
+        onPress={() => {
+          setFilterStatus(filterStatus === "pending" ? null : "pending");
+        }}
+      >
         <View style={[styles.legendColor, styles.pendingLegend]} />
-        <Text style={styles.legendText}>Pendente de envio</Text>
-      </View>
-      <View style={styles.legendItem}>
+        <Text
+          style={[
+            styles.legendText,
+            filterStatus === "pending" && styles.legendTextActive,
+          ]}
+        >
+          Pendente de envio
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[
+          styles.legendItem,
+          filterStatus === "sent" && styles.legendItemActive,
+        ]}
+        onPress={() => {
+          setFilterStatus(filterStatus === "sent" ? null : "sent");
+        }}
+      >
         <View style={[styles.legendColor, styles.sentLegend]} />
-        <Text style={styles.legendText}>Enviado</Text>
-      </View>
+        <Text
+          style={[
+            styles.legendText,
+            filterStatus === "sent" && styles.legendTextActive,
+          ]}
+        >
+          Enviado
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 
@@ -658,18 +825,83 @@ export default function AudiosScreen() {
     <View style={styles.container}>
       <View style={styles.titleContainer}>
         <Text style={styles.title}>Áudios Gravados</Text>
-        <TouchableOpacity
-          onPress={() => setShowConfirmDeleteAllModal(true)}
-          style={styles.deleteAllButton}
-          disabled={recordings.length === 0 || deletingAll}
-        >
-          <MaterialIcons
-            name="delete"
-            size={24}
-            color={recordings.length === 0 ? "#ccc" : "#F44336"}
-          />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            onPress={() => setShowFilters(!showFilters)}
+            style={[
+              styles.filterButton,
+              showFilters && styles.filterButtonActive,
+            ]}
+          >
+            <MaterialIcons
+              name="filter-list"
+              size={24}
+              color={showFilters ? "#2196F3" : "#666"}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setShowConfirmDeleteAllModal(true)}
+            style={styles.deleteAllButton}
+            disabled={recordings.length === 0 || deletingAll}
+          >
+            <MaterialIcons
+              name="delete"
+              size={24}
+              color={recordings.length === 0 ? "#ccc" : "#F44336"}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {showFilters && (
+        <View style={styles.filtersContainer}>
+          <Text style={styles.filtersTitle}>Filtros</Text>
+          <View style={styles.filtersContent}>
+            <View style={styles.filterItem}>
+              {loadingParticipantes ? (
+                <ActivityIndicator size="small" color="#2196F3" />
+              ) : (
+                <ParticipanteSelect
+                  placeholder="Selecione um participante"
+                  participantes={participantes}
+                  selectedParticipanteId={filterParticipanteId}
+                  onParticipanteChange={setFilterParticipanteId}
+                />
+              )}
+            </View>
+
+            <View style={styles.filterItem}>
+              {loadingVocalizations ? (
+                <ActivityIndicator size="small" color="#2196F3" />
+              ) : (
+                <VocalizationSelect
+                  placeholder="Selecione um tipo vocalização"
+                  vocalizations={vocalizations}
+                  selectedVocalizationId={filterVocalizacaoId}
+                  onValueChange={setFilterVocalizacaoId}
+                />
+              )}
+            </View>
+
+            <View style={styles.filterActions}>
+              <ButtonCustom
+                title="Limpar Filtros"
+                onPress={clearFilters}
+                variant="secondary"
+                icon={<MaterialIcons name="clear" size={18} color="#666" />}
+                style={styles.filterButton}
+              />
+            </View>
+
+            <View style={styles.filterStats}>
+              <Text style={styles.filterStatsText}>
+                Exibindo {filteredRecordings.length} de {recordings.length}{" "}
+                áudios
+              </Text>
+            </View>
+          </View>
+        </View>
+      )}
 
       <ButtonCustom
         title={`Enviar Todos os Áudios (${getPendingCount()})`}
@@ -690,20 +922,28 @@ export default function AudiosScreen() {
       )}
 
       <FlatList
-        data={recordings}
+        data={filteredRecordings}
         renderItem={renderRecording}
         keyExtractor={(item) => item.timestamp.toString()}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <MaterialIcons name="audiotrack" size={64} color="#ccc" />
-            <Text style={styles.emptyText}>Nenhuma gravação encontrada</Text>
+            <Text style={styles.emptyText}>
+              {recordings.length > 0
+                ? "Nenhum áudio corresponde aos filtros selecionados"
+                : "Nenhuma gravação encontrada"}
+            </Text>
             <Text style={styles.emptySubtext}>
-              Grave áudios na tela inicial para visualizá-los aqui
+              {recordings.length > 0
+                ? "Tente ajustar ou limpar os filtros"
+                : "Grave áudios na tela inicial para visualizá-los aqui"}
             </Text>
           </View>
         }
         contentContainerStyle={
-          recordings.length === 0 ? { flex: 1, justifyContent: "center" } : {}
+          filteredRecordings.length === 0
+            ? { flex: 1, justifyContent: "center" }
+            : {}
         }
       />
 
@@ -711,7 +951,7 @@ export default function AudiosScreen() {
         visible={showUpdateConfirmModal}
         onCancel={() => setShowUpdateConfirmModal(false)}
         onConfirm={handleUpdateVocalizationId}
-        message="Confirma a atualização da vocalização?"
+        message="Confirma a atualização dos dados do áudio?"
       />
 
       <ConfirmationModal
@@ -752,128 +992,160 @@ export default function AudiosScreen() {
         animationType="slide"
         onRequestClose={() => setShowOptionsModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Dados da Gravação</Text>
-              <TouchableOpacity
-                onPress={() => setShowOptionsModal(false)}
-                style={styles.modalClose}
-              >
-                <MaterialIcons name="close" size={24} color="#666" />
-              </TouchableOpacity>
-            </View>
-
-            {selectedRecording && (
-              <View style={styles.recordingDetailCard}>
-                <View style={styles.infoRow}>
-                  <MaterialIcons name="access-time" size={20} color="#666" />
-                  <Text style={styles.infoText}>
-                    {new Date(selectedRecording.timestamp).toLocaleString(
-                      "pt-BR"
-                    )}
-                  </Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <MaterialIcons name="timer" size={20} color="#666" />
-                  <Text style={styles.infoText}>
-                    {formatTime(selectedRecording.duration)}
-                  </Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <MaterialIcons name="label" size={20} color="#666" />
-                  <Text style={styles.infoText}>
-                    {translateVocalization[
-                      selectedRecording.vocalizationName
-                    ] || selectedRecording.vocalizationName}
-                  </Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <MaterialIcons
-                    name={
-                      selectedRecording.status === "sent"
-                        ? "cloud-done"
-                        : "cloud-upload"
-                    }
-                    size={20}
-                    color={
-                      selectedRecording.status === "sent" ? "#4CAF50" : "#666"
-                    }
-                  />
-                  <Text
-                    style={[
-                      styles.infoText,
-                      selectedRecording.status === "sent" && {
-                        color: "#4CAF50",
-                        fontWeight: "600",
-                      },
-                    ]}
-                  >
-                    {selectedRecording.status === "sent"
-                      ? "Enviado"
-                      : "Pendente de envio"}
-                  </Text>
-                </View>
+        <ScrollView>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Dados da Gravação</Text>
+                <TouchableOpacity
+                  onPress={() => setShowOptionsModal(false)}
+                  style={styles.modalClose}
+                >
+                  <MaterialIcons name="close" size={24} color="#666" />
+                </TouchableOpacity>
               </View>
-            )}
+              {selectedRecording && (
+                <View style={styles.recordingDetailCard}>
+                  <View style={styles.infoRow}>
+                    <MaterialIcons
+                      name="record-voice-over"
+                      size={20}
+                      color="#666"
+                    />
 
-            {loadingVocalizations ? (
-              <ActivityIndicator
-                size="large"
-                color="#2196F3"
-                style={styles.loadingIndicator}
-              />
-            ) : (
-              <View style={styles.selectContainer}>
-                <VocalizationSelect
-                  vocalizations={vocalizations}
-                  selectedVocalizationId={selectedVocalizationId}
-                  onValueChange={(value) => setSelectedVocalizationId(value)}
+                    <Text style={styles.infoText} numberOfLines={1}>
+                      {selectedRecording.uri.split("/").pop()?.split("_")[1] ||
+                        "Gravação"}
+                    </Text>
+                  </View>
+                  <View style={styles.infoRow}>
+                    <MaterialIcons name="access-time" size={20} color="#666" />
+                    <Text style={styles.infoText}>
+                      {new Date(selectedRecording.timestamp).toLocaleString(
+                        "pt-BR"
+                      )}
+                    </Text>
+                  </View>
+                  <View style={styles.infoRow}>
+                    <MaterialIcons name="timer" size={20} color="#666" />
+                    <Text style={styles.infoText}>
+                      {formatTime(selectedRecording.duration)}
+                    </Text>
+                  </View>
+                  <View style={styles.infoRow}>
+                    <MaterialIcons name="label" size={20} color="#666" />
+                    <Text style={styles.infoText}>
+                      {translateVocalization[
+                        selectedRecording.vocalizationName
+                      ] || selectedRecording.vocalizationName}
+                    </Text>
+                  </View>
+                  <View style={styles.infoRow}>
+                    <MaterialIcons
+                      name={
+                        selectedRecording.status === "sent"
+                          ? "cloud-done"
+                          : "cloud-upload"
+                      }
+                      size={20}
+                      color={
+                        selectedRecording.status === "sent" ? "#4CAF50" : "#666"
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.infoText,
+                        selectedRecording.status === "sent" && {
+                          color: "#4CAF50",
+                          fontWeight: "600",
+                        },
+                      ]}
+                    >
+                      {selectedRecording.status === "sent"
+                        ? "Enviado"
+                        : "Pendente de envio"}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {loadingParticipantes ? (
+                <ActivityIndicator
+                  size="small"
+                  color="#2196F3"
+                  style={styles.loadingIndicator}
+                />
+              ) : (
+                <ParticipanteSelector
+                  participantes={participantes}
+                  selectedParticipanteId={selectedAudioParticipanteId}
+                  onParticipanteChange={setSelectedAudioParticipanteId}
+                />
+              )}
+              {loadingVocalizations ? (
+                <ActivityIndicator
+                  size="large"
+                  color="#2196F3"
+                  style={styles.loadingIndicator}
+                />
+              ) : (
+                <View style={styles.selectContainer}>
+                  <VocalizationSelect
+                    vocalizations={vocalizations}
+                    selectedVocalizationId={selectedVocalizationId}
+                    onValueChange={(value) => setSelectedVocalizationId(value)}
+                  />
+                </View>
+              )}
+
+              <View style={styles.modalActions}>
+                <ButtonCustom
+                  title="Atualizar Dados da Gravação"
+                  onPress={() => setShowUpdateConfirmModal(true)}
+                  color="#2196F3"
+                  style={styles.actionButton}
+                  icon={<MaterialIcons name="edit" size={20} color="#FFF" />}
+                  disabled={selectedRecording?.status === "sent"}
+                />
+
+                <ButtonCustom
+                  title={sendingAudio ? "Enviando..." : "Enviar Áudio"}
+                  onPress={() =>
+                    selectedRecording &&
+                    handleUpload(
+                      selectedRecording.vocalizationId,
+                      selectedRecording.uri
+                    )
+                  }
+                  color="#4CAF50"
+                  style={styles.actionButton}
+                  icon={
+                    sendingAudio ? (
+                      <ActivityIndicator size="small" color="#FFF" />
+                    ) : (
+                      <MaterialIcons
+                        name="cloud-upload"
+                        size={20}
+                        color="#FFF"
+                      />
+                    )
+                  }
+                  disabled={
+                    selectedRecording?.status === "sent" || sendingAudio
+                  }
+                />
+
+                <ButtonCustom
+                  title="Excluir Áudio"
+                  onPress={() => setShowConfirmDeleteModal(true)}
+                  color="#F44336"
+                  style={styles.actionButton}
+                  icon={<MaterialIcons name="delete" size={20} color="#FFF" />}
                 />
               </View>
-            )}
-
-            <View style={styles.modalActions}>
-              <ButtonCustom
-                title="Atualizar Tipo da Vocalização"
-                onPress={() => setShowUpdateConfirmModal(true)}
-                color="#2196F3"
-                style={styles.actionButton}
-                icon={<MaterialIcons name="edit" size={20} color="#FFF" />}
-                disabled={selectedRecording?.status === "sent"}
-              />
-
-              <ButtonCustom
-                title={sendingAudio ? "Enviando..." : "Enviar Áudio"}
-                onPress={() =>
-                  selectedRecording &&
-                  handleUpload(
-                    selectedRecording.vocalizationId,
-                    selectedRecording.uri
-                  )
-                }
-                color="#4CAF50"
-                style={styles.actionButton}
-                icon={
-                  sendingAudio ? (
-                    <ActivityIndicator size="small" color="#FFF" />
-                  ) : (
-                    <MaterialIcons name="cloud-upload" size={20} color="#FFF" />
-                  )
-                }
-                disabled={selectedRecording?.status === "sent" || sendingAudio}
-              />
-
-              <ButtonCustom
-                title="Excluir Áudio"
-                onPress={() => setShowConfirmDeleteModal(true)}
-                color="#F44336"
-                style={styles.actionButton}
-                icon={<MaterialIcons name="delete" size={20} color="#FFF" />}
-              />
             </View>
           </View>
-        </View>
+        </ScrollView>
       </Modal>
     </View>
   );
@@ -909,16 +1181,30 @@ const styles = StyleSheet.create({
   },
   legendContainer: {
     flexDirection: "row",
-    justifyContent: "space-around",
+    justifyContent: "space-between",
     backgroundColor: "#fff",
     borderRadius: 12,
-    padding: 10,
+    padding: 8,
     marginBottom: 16,
     elevation: 2,
   },
+  legendItemActive: {
+    backgroundColor: "#E3F2FD",
+    padding: 8,
+    borderRadius: 8,
+  },
+  legendTextActive: {
+    fontWeight: "600",
+    color: "#2196F3",
+  },
   legendItem: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    borderRadius: 8,
+    marginHorizontal: 4,
+    justifyContent: "center",
+    height: 44,
   },
   legendColor: {
     width: 16,
@@ -929,6 +1215,7 @@ const styles = StyleSheet.create({
   legendText: {
     fontSize: 14,
     color: "#666",
+    textAlign: "center",
   },
   pendingLegend: {
     backgroundColor: "#F5F5F5",
@@ -1070,8 +1357,68 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 16,
   },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  filterButton: {
+    padding: 8,
+    borderRadius: 20,
+    marginRight: 8,
+  },
+  filterButtonActive: {
+    backgroundColor: "#E3F2FD",
+  },
   deleteAllButton: {
     padding: 8,
     borderRadius: 20,
+  },
+  participanteRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 2,
+  },
+  participanteIcon: {
+    marginRight: 4,
+  },
+  participanteName: {
+    fontSize: 13,
+    color: "#888",
+  },
+  filtersContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    elevation: 2,
+  },
+  filtersTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#212121",
+    marginBottom: 12,
+  },
+  filtersContent: {
+    gap: 12,
+  },
+  filterItem: {
+    marginBottom: 8,
+  },
+
+  filterActions: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 8,
+  },
+  filterStats: {
+    alignItems: "center",
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: "#F5F5F5",
+    borderRadius: 8,
+  },
+  filterStatsText: {
+    fontSize: 12,
+    color: "#666",
   },
 });
