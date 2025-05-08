@@ -175,23 +175,15 @@ export default function ParticipantesScreen() {
 
   const navigateToAudios = async (participante: any) => {
     try {
-      const userId = await AsyncStorage.getItem("userId");
-      if (userId) {
-        router.push({
-          pathname: "/(tabs)/admin/audios/[id]",
-          params: {
-            id: userId,
-            participanteId: participante.id,
-            fromScreen: "participantes",
-          },
-        });
-      } else {
-        Toast.show({
-          type: "error",
-          text1: "Erro",
-          text2: "ID do usuário não encontrado",
-        });
-      }
+      router.push({
+        pathname: "/(tabs)/admin/audios/[id]",
+        params: {
+          id: participante.id_usuario,
+          participanteId: participante.id,
+          fromScreen: "admin-participantes",
+          directToAudios: "true"
+        }
+      });
     } catch (error) {
       Toast.show({
         type: "error",

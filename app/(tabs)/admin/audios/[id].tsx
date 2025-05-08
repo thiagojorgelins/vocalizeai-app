@@ -29,7 +29,7 @@ import Toast from "react-native-toast-message";
 import { getParticipantesByUsuario } from "@/services/participanteService";
 
 export default function AudiosUsuarioScreen() {
-  const { id, participanteId, fromScreen } = useLocalSearchParams();
+  const { id, participanteId, fromScreen, directToAudios } = useLocalSearchParams();
   const userId = typeof id === "string" ? id : "";
 
   const [userName, setUserName] = useState<string>("Usuário");
@@ -99,13 +99,13 @@ export default function AudiosUsuarioScreen() {
     async (participanteId: number) => {
       setIsLoading(true);
       setError(null);
-
+  
       try {
         const audiosList = await listAudiosByParticipante(participanteId);
         setAudios(audiosList);
       } catch (error: any) {
         setError(error?.message || "Erro ao carregar áudios");
-
+  
         Toast.show({
           type: "error",
           text1: "Erro ao carregar áudios",
@@ -158,15 +158,13 @@ export default function AudiosUsuarioScreen() {
   }, []);
 
   useEffect(() => {
-    if (participanteId && participantes.length > 0) {
-      const participant = participantes.find(
-        p => p.id.toString() === participanteId.toString()
-      );
+    if (directToAudios === "true" && participanteId && participantes.length > 0) {
+      const participant = participantes.find(p => p.id.toString() === participanteId.toString());
       if (participant) {
         handleSelectParticipante(participant);
       }
     }
-  }, [participanteId, participantes]);
+  }, [participantes, participanteId, directToAudios]);
 
   useFocusEffect(
     useCallback(() => {
@@ -413,13 +411,19 @@ export default function AudiosUsuarioScreen() {
         >
           <Text style={styles.retryButtonText}>Tentar novamente</Text>
         </TouchableOpacity>
-
+  
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => {
             if (viewMode === "audios") {
-              setViewMode("participantes");
-              setSelectedParticipante(null);
+              if (fromScreen === "admin-participantes" && directToAudios === "true") {
+                router.push("/(tabs)/admin/participantes");
+              } else {
+                setViewMode("participantes");
+                setSelectedParticipante(null);
+              }
+            } else if (fromScreen === "admin-participantes") {
+              router.push("/(tabs)/admin/participantes");
             } else if (fromScreen === "usuarios") {
               router.push("/admin/usuarios");
             } else if (fromScreen === "participantes") {
@@ -442,7 +446,9 @@ export default function AudiosUsuarioScreen() {
           <TouchableOpacity
             style={styles.backIcon}
             onPress={() => {
-              if (fromScreen === "usuarios") {
+              if (fromScreen === "admin-participantes") {
+                router.push("/(tabs)/admin/participantes");
+              } else if (fromScreen === "usuarios") {
                 router.push("/admin/usuarios");
               } else if (fromScreen === "participantes") {
                 router.push("/(tabs)/admin/participantes");
@@ -462,8 +468,12 @@ export default function AudiosUsuarioScreen() {
           <TouchableOpacity
             style={styles.backIcon}
             onPress={() => {
-              setViewMode("participantes");
-              setSelectedParticipante(null);
+              if (fromScreen === "admin-participantes" && directToAudios === "true") {
+                router.push("/(tabs)/admin/participantes");
+              } else {
+                setViewMode("participantes");
+                setSelectedParticipante(null);
+              }
             }}
           >
             <MaterialIcons name="arrow-back" size={24} color="#212121" />
