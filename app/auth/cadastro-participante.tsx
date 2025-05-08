@@ -1,11 +1,8 @@
 import ButtonCustom from "@/components/Button";
-import ConfirmationModal from "@/components/ConfirmationModal";
 import FormParticipante from "@/components/FormParticipante";
 import ModalInfoNiveisAutismo from "@/components/ModalInfoNiveisAutismo";
-import SuccessModal from "@/components/SuccessModal";
 import { createParticipante } from "@/services/participanteService";
 import { MaterialIcons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -19,7 +16,6 @@ import {
 import Toast from "react-native-toast-message";
 
 export default function CadastroParticipanteScreen() {
-  const [nome, setNome] = useState("");
   const [genero, setGenero] = useState("Masculino");
   const [nivelSuporte, setNivelSuporte] = useState("1");
   const [qtdPalavras, setQtdPalavras] = useState(
@@ -27,31 +23,10 @@ export default function CadastroParticipanteScreen() {
   );
   const [idade, setIdade] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isModalLoading, setIsModalLoading] = useState(false);
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [idadeError, setIdadeError] = useState("");
-  const [nomeError, setNomeError] = useState("");
-  const [isModalVisible, setModalVisible] = useState(false);
-  const [isSuccessModalVisible, setSuccessModalVisible] = useState(false);
-  const [participantId, setParticipantId] = useState<string | null>(null);
-  
+
   const router = useRouter();
-
-  const validateNome = (value: string) => {
-    if (!value.trim()) {
-      setNomeError("O nome é obrigatório");
-      return false;
-    }
-
-    const regex = /^[a-zA-ZÀ-ÿ\s]+$/;
-    if (!regex.test(value)) {
-      setNomeError("O nome deve conter apenas letras e espaços");
-      return false;
-    }
-
-    setNomeError("");
-    return true;
-  }
 
   const validateIdade = (value: string) => {
     if (!value.trim()) {
@@ -69,74 +44,45 @@ export default function CadastroParticipanteScreen() {
     return true;
   };
 
-  function handleOpenModal() {
-    if (!validateIdade(idade) || !validateNome(nome)) {
+  async function handleCreateParticipante() {
+    if (!validateIdade(idade)) {
       return;
     }
-    setModalVisible(true);
-  }
 
-  async function handleCreateParticipante() {
     try {
-      setIsModalLoading(true);
-  
+      setIsLoading(true);
+
       const payload = {
         genero,
         idade: parseInt(idade),
         nivel_suporte:
           nivelSuporte === "Não sei informar" ? 0 : parseInt(nivelSuporte),
         qtd_palavras: qtdPalavras,
-        nome
       };
-  
-      const response = await createParticipante(payload);
-      
-      setModalVisible(false);
-      
-      if (response && response.id) {
-        await AsyncStorage.setItem("hasParticipant", "true");
-        await AsyncStorage.setItem("participantId", response.id.toString());
-        setSuccessModalVisible(true);
-      } else {
-        Toast.show({
-          type: "success",
-          text1: "Participante criado com sucesso!",
-          text2: "Você já pode acessar o sistema completo.",
-        });
-        router.replace("/(tabs)");
-      }
+
+      await createParticipante(payload);
+
+      Toast.show({
+        type: "success",
+        text1: "Participante criado com sucesso!",
+        text2: "Você já pode acessar o sistema completo.",
+      });
+
+      router.replace("/(tabs)");
     } catch (error: any) {
       const errorMessage =
         error.response?.data?.detail ||
         error.message ||
         "Erro ao criar participante.";
-      
-      setModalVisible(false);
-      
       Toast.show({
         type: "error",
         text1: "Erro ao criar participante",
         text2: errorMessage,
       });
     } finally {
-      setIsModalLoading(false);
+      setIsLoading(false);
     }
   }
-
-  const handleCreateAnother = () => {
-    setSuccessModalVisible(false);
-    setNome("");
-    setIdade("");
-    setQtdPalavras("Não pronuncia nenhuma palavra");
-    setGenero("Masculino");
-    setNivelSuporte("1");
-    setParticipantId(null);
-  };
-
-  const handleGoToHome = () => {
-    setSuccessModalVisible(false);
-    router.replace("/(tabs)");
-  };
 
   return (
     <KeyboardAvoidingView behavior={"height"} style={styles.container}>
@@ -158,10 +104,6 @@ export default function CadastroParticipanteScreen() {
 
         <View style={styles.card}>
           <FormParticipante
-            nome={nome}
-            setNome={setNome}
-            validateNome={validateNome}
-            nomeError={nomeError}
             idade={idade}
             setIdade={setIdade}
             genero={genero}
@@ -185,37 +127,19 @@ export default function CadastroParticipanteScreen() {
             ) : (
               <ButtonCustom
                 title="Criar Participante"
-                onPress={handleOpenModal}
+                onPress={handleCreateParticipante}
                 color="#2196F3"
                 style={styles.mainButton}
                 icon={<MaterialIcons name="save" size={20} color="#FFF" />}
-                disabled={!!idadeError || !idade.trim() || !!nomeError || !nome.trim()}
+                disabled={!!idadeError || !idade.trim()}
               />
             )}
           </View>
         </View>
       </ScrollView>
-      
       <ModalInfoNiveisAutismo
         visible={showSupportModal}
         onClose={() => setShowSupportModal(false)}
-      />
-      
-      <ConfirmationModal
-        visible={isModalVisible}
-        onCancel={() => setModalVisible(false)}
-        onConfirm={handleCreateParticipante}
-        message="Deseja confirmar a criação do participante?"
-        isLoading={isModalLoading}
-      />
-      
-      <SuccessModal
-        visible={isSuccessModalVisible}
-        title={`Participante ${participantId ? "atualizado" : "criado"} com sucesso!`}
-        primaryButtonText="Criar Outro Participante"
-        onPrimaryButtonPress={handleCreateAnother}
-        secondaryButtonText="Ir para Home"
-        onSecondaryButtonPress={handleGoToHome}
       />
     </KeyboardAvoidingView>
   );

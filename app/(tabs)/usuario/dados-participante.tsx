@@ -7,7 +7,6 @@ import {
   createParticipante,
   getParticipante,
   updateParticipante,
-  getParticipantesByUsuario,
 } from "@/services/participanteService";
 import { getUser } from "@/services/usuarioService";
 import { ParticipantePayload } from "@/types/ParticipantePayload";
@@ -18,7 +17,6 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -26,10 +24,8 @@ import {
 } from "react-native";
 import * as Animatable from "react-native-animatable";
 import Toast from "react-native-toast-message";
-import ParticipantesList from "../../../components/ParticipantesList";
 
 export default function DadosParticipanteScreen() {
-  const [nome, setNome] = useState("");
   const [idade, setIdade] = useState("");
   const [qtdPalavras, setQtdPalavras] = useState(
     "Não pronuncia nenhuma palavra"
@@ -41,13 +37,8 @@ export default function DadosParticipanteScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isModalLoading, setIsModalLoading] = useState(false);
   const [idadeError, setIdadeError] = useState("");
-  const [nomeError, setNomeError] = useState("");
   const [redirectedFromHome, setRedirectedFromHome] = useState(false);
   const [showSupportModal, setShowSupportModal] = useState(false);
-  const [showParticipantsList, setShowParticipantsList] = useState(false);
-  const [participantes, setParticipantes] = useState<any[]>([]);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [isSuccessModalVisible, setSuccessModalVisible] = useState(false);
 
   const router = useRouter();
 
@@ -63,43 +54,23 @@ export default function DadosParticipanteScreen() {
     checkRedirection();
   }, []);
 
-  const loadUserId = async () => {
-    const id = await AsyncStorage.getItem("userId");
-    setUserId(id);
-    return id;
-  };
-
-  const loadParticipantes = useCallback(async () => {
+  const loadParticipantData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const userId = await loadUserId();
-      if (userId) {
-        const data = await getParticipantesByUsuario(userId);
-        setParticipantes(data);
-        setShowParticipantsList(data.length > 0);
+      const userData = await getUser();
+
+      if (userData.participante && userData.participante.id) {
+        const participantData = await getParticipante(
+          userData.participante.id.toString()
+        );
+        setParticipantId(participantData.id.toString());
+        setIdade(participantData.idade.toString());
+        setQtdPalavras(participantData.qtd_palavras);
+        setGenero(participantData.genero);
+        setNivelSuporte(participantData.nivel_suporte.toString());
+      } else {
+        setParticipantId(null);
       }
-    } catch (error: any) {
-      Toast.show({
-        type: "error",
-        text1: "Erro ao carregar participantes",
-        text2: error.message || "Erro desconhecido",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const loadParticipantData = useCallback(async (id: string) => {
-    setIsLoading(true);
-    try {
-      const participantData = await getParticipante(id);
-      setParticipantId(participantData.id.toString());
-      setIdade(participantData.idade.toString());
-      setQtdPalavras(participantData.qtd_palavras);
-      setGenero(participantData.genero);
-      setNivelSuporte(participantData.nivel_suporte.toString());
-      setNome(participantData.nome || "");
-      setShowParticipantsList(false);
     } catch (error: any) {
       const errorMessage =
         error.response?.data?.detail ||
@@ -117,58 +88,9 @@ export default function DadosParticipanteScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadParticipantes();
-    }, [loadParticipantes])
+      loadParticipantData();
+    }, [loadParticipantData])
   );
-
-  const handleSelectParticipante = (participante: any) => {
-    loadParticipantData(participante.id.toString());
-  };
-
-  const handleAddParticipante = () => {
-    setParticipantId(null);
-    setIdade("");
-    setQtdPalavras("Não pronuncia nenhuma palavra");
-    setGenero("Masculino");
-    setNivelSuporte("1");
-    setNome("");
-    setShowParticipantsList(false);
-  };
-
-  const handleBackToList = () => {
-    setShowParticipantsList(true);
-    loadParticipantes();
-  };
-
-  const handleCreateAnother = () => {
-    setSuccessModalVisible(false);
-    handleAddParticipante();
-  };
-
-  const handleGoToHome = () => {
-    setSuccessModalVisible(false);
-    if (redirectedFromHome) {
-      router.replace("/(tabs)");
-    } else {
-      handleBackToList();
-    }
-  };
-
-  const validateNome = (value: string) => {
-    if (!value.trim()) {
-      setNomeError("O nome é obrigatório");
-      return false;
-    }
-
-    const regex = /^[a-zA-ZÀ-ÿ\s]+$/;
-    if (!regex.test(value)) {
-      setNomeError("O nome deve conter apenas letras e espaços");
-      return false;
-    }
-
-    setNomeError("");
-    return true;
-  }
 
   const validateIdade = (value: string) => {
     if (!value.trim()) {
@@ -202,7 +124,6 @@ export default function DadosParticipanteScreen() {
         qtd_palavras: qtdPalavras,
         genero,
         nivel_suporte: parseInt(nivelSuporte),
-        nome
       };
 
       setModalVisible(false);
@@ -216,10 +137,6 @@ export default function DadosParticipanteScreen() {
           text1: "Sucesso!",
           text2: "Dados do participante atualizados.",
         });
-
-        setTimeout(() => {
-          handleBackToList();
-        }, 1000);
       } else {
         const response = await createParticipante(payload);
         if (response && response.id) {
@@ -234,7 +151,11 @@ export default function DadosParticipanteScreen() {
           text2: "Participante criado com sucesso.",
         });
 
-        setSuccessModalVisible(true);
+        if (redirectedFromHome) {
+          setTimeout(() => {
+            router.replace("/(tabs)");
+          }, 1000);
+        }
       }
     } catch (error: any) {
       const errorMessage =
@@ -268,102 +189,80 @@ export default function DadosParticipanteScreen() {
           <Text style={styles.loadingText}>Carregando...</Text>
         </View>
       )}
-  
-      {showParticipantsList ? (
-        <ParticipantesList
-          participantes={participantes}
-          onSelectParticipante={handleSelectParticipante}
-          onAddParticipante={handleAddParticipante}
-        />
-      ) : (
-        <ScrollView
-          style={styles.scrollView}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.header}>
-            <View style={styles.avatarsContainer}>
-              <View style={styles.avatarCircle}>
-                <MaterialIcons name="face" size={30} color="#2196F3" />
-              </View>
-              <View style={styles.avatarCircle}>
-                <MaterialIcons name="face-3" size={30} color="#E91E63" />
-              </View>
+
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <View style={styles.avatarsContainer}>
+            <View style={styles.avatarCircle}>
+              <MaterialIcons name="face" size={30} color="#2196F3" />
             </View>
-            <Text style={styles.title}>
-              {participantId ? "Editar Participante" : "Novo Participante"}
-            </Text>
-  
-            {redirectedFromHome && (
-              <View style={styles.warningContainer}>
-                <MaterialIcons name="warning" size={24} color="#FF9800" />
-                <Text style={styles.warningText}>
-                  Por favor, preencha os dados do participante antes de gravar as
-                  vocalizações.
-                </Text>
-              </View>
-            )}
+            <View style={styles.avatarCircle}>
+              <MaterialIcons name="face-3" size={30} color="#E91E63" />
+            </View>
           </View>
-  
-          <View style={styles.card}>  
-            <FormParticipante
-              nome={nome}
-              setNome={setNome}
-              validateNome={validateNome}
-              nomeError={nomeError}
-              idade={idade}
-              setIdade={setIdade}
-              genero={genero}
-              setGenero={setGenero}
-              nivelSuporte={nivelSuporte}
-              setNivelSuporte={setNivelSuporte}
-              qtdPalavras={qtdPalavras}
-              setQtdPalavras={setQtdPalavras}
-              idadeError={idadeError}
-              validateIdade={validateIdade}
-              setShowSupportModal={setShowSupportModal}
+          <Text style={styles.title}>
+            {participantId ? "Editar Participante" : "Novo Participante"}
+          </Text>
+
+          {redirectedFromHome && (
+            <View style={styles.warningContainer}>
+              <MaterialIcons name="warning" size={24} color="#FF9800" />
+              <Text style={styles.warningText}>
+                Por favor, preencha os dados do participante antes de gravar as
+                vocalizações.
+              </Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.card}>
+          <FormParticipante
+            idade={idade}
+            setIdade={setIdade}
+            genero={genero}
+            setGenero={setGenero}
+            nivelSuporte={nivelSuporte}
+            setNivelSuporte={setNivelSuporte}
+            qtdPalavras={qtdPalavras}
+            setQtdPalavras={setQtdPalavras}
+            idadeError={idadeError}
+            validateIdade={validateIdade}
+            setShowSupportModal={setShowSupportModal}
+          />
+
+          <View style={styles.actions}>
+            <ButtonCustom
+              title={
+                participantId ? "Atualizar Participante" : "Criar Participante"
+              }
+              onPress={handleOpenModal}
+              icon={<MaterialIcons name="save" size={20} color="#FFF" />}
+              color="#2196F3"
+              style={styles.mainButton}
+              disabled={!!idadeError || !idade.trim()}
             />
-  
-            <View style={styles.actions}>
-              <ButtonCustom
-                title={
-                  participantId ? "Atualizar Participante" : "Criar Participante"
-                }
-                onPress={handleOpenModal}
-                icon={<MaterialIcons name="save" size={20} color="#FFF" />}
-                color="#2196F3"
-                style={styles.mainButton}
-                disabled={!!idadeError || !idade.trim() || !!nomeError || !nome.trim()}
-              />
-  
-              {participantId && (
-                <ButtonCustom
-                  title="Voltar para Lista"
-                  variant="secondary"
-                  onPress={handleBackToList}
-                  icon={<MaterialIcons name="list" size={20} color="#666" />}
-                  disabled={isLoading}
-                />
-              )}
-  
-              <ButtonCustom
-                title="Voltar para Dados do Usuário"
-                variant="secondary"
-                onPress={() => router.push("/usuario/editar-usuario")}
-                icon={<MaterialIcons name="arrow-back" size={20} color="#666" />}
-                disabled={isLoading}
-              />
-  
-              <ButtonCustom
-                title="Sair do App"
-                onPress={doLogout}
-                icon={<MaterialIcons name="logout" size={20} color="#D32F2F" />}
-                variant="danger"
-                disabled={isLoading}
-              />
-            </View>
+
+            <ButtonCustom
+              title="Voltar para Dados do Usuário"
+              variant="secondary"
+              onPress={() => router.push("/usuario/editar-usuario")}
+              icon={<MaterialIcons name="arrow-back" size={20} color="#666" />}
+              disabled={isLoading}
+            />
+
+            <ButtonCustom
+              title="Sair do App"
+              onPress={doLogout}
+              icon={<MaterialIcons name="logout" size={20} color="#D32F2F" />}
+              variant="danger"
+              disabled={isLoading}
+            />
           </View>
-        </ScrollView>
-      )}
+        </View>
+      </ScrollView>
       
       <ModalInfoNiveisAutismo
         visible={showSupportModal}
@@ -379,40 +278,6 @@ export default function DadosParticipanteScreen() {
         } dos dados do participante?`}
         isLoading={isModalLoading}
       />
-  
-      <Modal
-        visible={isSuccessModalVisible}
-        transparent={true}
-        animationType="fade"
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.successModalContent}>
-            <MaterialIcons name="check-circle" size={48} color="#4CAF50" />
-            <Text style={styles.successModalTitle}>
-              Participante {participantId ? "atualizado" : "criado"} com sucesso!
-            </Text>
-            <Text style={styles.successModalMessage}>
-              O que você deseja fazer agora?
-            </Text>
-            <View style={styles.successModalButtons}>
-              <ButtonCustom
-                title="Criar Outro Participante"
-                onPress={handleCreateAnother}
-                icon={<MaterialIcons name="person-add" size={20} color="#FFF" />}
-                color="#2196F3"
-                style={styles.successModalButton}
-              />
-              <ButtonCustom
-                title={redirectedFromHome ? "Ir para Home" : "Voltar para Lista"}
-                onPress={handleGoToHome}
-                icon={<MaterialIcons name="home" size={20} color="#FFF" />}
-                color="#4CAF50"
-                style={styles.successModalButton}
-              />
-            </View>
-          </View>
-        </View>
-      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -499,73 +364,5 @@ const styles = StyleSheet.create({
   mainButton: {
     height: 48,
     borderRadius: 24,
-  },
-  inputContainer: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#424242",
-    marginBottom: 8,
-  },
-  input: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F5F5F5",
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  inputError: {
-    borderColor: "#F44336",
-  },
-  textInput: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 16,
-    color: "#212121",
-  },
-  errorText: {
-    color: "#F44336",
-    fontSize: 12,
-    marginTop: 4,
-    marginLeft: 8,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  successModalContent: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 24,
-    alignItems: "center",
-    width: "85%",
-    elevation: 4,
-  },
-  successModalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#212121",
-    marginTop: 16,
-    textAlign: "center",
-  },
-  successModalMessage: {
-    fontSize: 16,
-    color: "#666666",
-    marginVertical: 16,
-    textAlign: "center",
-  },
-  successModalButtons: {
-    width: "100%",
-    gap: 12,
-  },
-  successModalButton: {
-    marginVertical: 0,
   },
 });

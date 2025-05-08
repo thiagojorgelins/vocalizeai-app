@@ -1,8 +1,4 @@
 export interface FormParticipanteProps {
-  nome: string;
-  setNome: (value: string) => void;
-  nomeError?: string;
-  validateNome: (value: string) => boolean;
   idade: string;
   setIdade: (value: string) => void;
   genero: string;

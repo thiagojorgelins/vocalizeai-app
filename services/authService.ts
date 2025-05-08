@@ -100,29 +100,24 @@ const doLogin = async (email: string, senha: string): Promise<string> => {
         await AsyncStorage.setItem("username", userResponse.data.nome);
 
         const userData = await getUser();
-        
-        if (userData.participantes && userData.participantes.length > 0) {
-          await AsyncStorage.setItem("hasParticipant", "true");
-          
-          if (userData.participantes[0] && userData.participantes[0].id) {
-            await AsyncStorage.setItem("participantId", userData.participantes[0].id.toString());
-          }
-          
-          router.replace("/(tabs)");
-        } else {
+        if (!userData.participante || !userData.participante.id) {
           await AsyncStorage.setItem("hasParticipant", "false");
           router.replace("/usuario/dados-participante");
 
           Toast.show({
             type: "info",
             text1: "Atenção",
-            text2: "Por favor, cadastre um participante antes de gravar as vocalizações.",
+            text2: "Por favor, preencha os dados do participante antes de gravar as vocalizações.",
           });
+
+          return "success";
+        } else {
+          await AsyncStorage.setItem("hasParticipant", "true");
+          await AsyncStorage.setItem("participantId", userData.participante.id.toString());
         }
       } catch (error) {
         await AsyncStorage.setItem("username", "Usuário");
         await AsyncStorage.setItem("hasParticipant", "false");
-        router.replace("/usuario/dados-participante");
       }
 
       await AsyncStorage.multiSet([
@@ -181,6 +176,19 @@ const stopTokenUpdateRoutine = () => {
     clearInterval(tokenUpdateInterval);
     tokenUpdateInterval = null;
     setIsUpdatingToken(false);
+  }
+};
+
+/**
+ * Verifica se o usuário já possui um participante registrado
+ * @returns Retorna true se o usuário possui participante registrado, caso contrário retorna false
+ */
+const hasParticipantRegistered = async (): Promise<boolean> => {
+  try {
+    const hasParticipant = await AsyncStorage.getItem("hasParticipant");
+    return hasParticipant === "true";
+  } catch (error) {
+    return false;
   }
 };
 
@@ -347,4 +355,4 @@ const resetPassword = async (email: string, codigoConfirmacao: string, novaSenha
   }
 };
 
-export { confirmPasswordReset, confirmRegistration, doLogin, doLogout, getExpirationTime, register, requestPasswordReset, resetPassword, sendConfirmationCode, updateToken };
+export { confirmPasswordReset, confirmRegistration, doLogin, doLogout, getExpirationTime, hasParticipantRegistered, register, requestPasswordReset, resetPassword, sendConfirmationCode, updateToken };

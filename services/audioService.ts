@@ -6,14 +6,12 @@ import { getToken } from "./util";
  * Faz o upload de um arquivo de áudio
  * @param idVocalizacao ID da vocalização associada ao áudio
  * @param fileUri URI do arquivo de áudio a ser enviado
- * @param participanteId ID do participante associado ao áudio
  * @returns Promise que resolve com a resposta da API
  * @throws Error se ocorrer um erro durante o upload
  */
 export const uploadAudioFile = async (
   idVocalizacao: number,
-  fileUri: string,
-  participanteId: number
+  fileUri: string
 ): Promise<any> => {
   try {
     const token = await getToken();
@@ -35,7 +33,7 @@ export const uploadAudioFile = async (
     } as any);
 
     const response = await api.post(
-      `/audios?id_vocalizacao=${idVocalizacao}&id_participante=${participanteId}`,
+      `/audios?id_vocalizacao=${idVocalizacao}`,
       formData,
       {
         headers: {
@@ -294,95 +292,6 @@ export const getAudioPlayUrl = async (
       errorMessage =
         error.response.data?.detail ||
         `Erro do servidor: ${error.response.status}`;
-    } else if (error.request) {
-      errorMessage = "Servidor não respondeu à solicitação.";
-    } else {
-      errorMessage = error.message || "Erro ao configurar solicitação.";
-    }
-
-    throw new Error(errorMessage);
-  }
-};
-
-/**
- * Lista todos os áudios de um participante específico
- * @param participanteId ID do participante
- * @returns Promise que resolve com a lista de áudios do participante
- * @throws Error se ocorrer um erro durante a busca
- */
-export const listAudiosByParticipante = async (participanteId: number): Promise<AudioItem[]> => {
-  try {
-    if (!participanteId || isNaN(participanteId) || participanteId <= 0) {
-      throw new Error("ID de participante inválido");
-    }
-
-    const token = await getToken();
-    if (!token) {
-      throw new Error("Token de autenticação não encontrado.");
-    }
-
-    const response = await api.get(`/audios/participante/${participanteId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (Array.isArray(response.data)) {
-      return response.data;
-    } else {
-      return [];
-    }
-  } catch (error: any) {
-    let errorMessage = "Erro ao buscar áudios do participante.";
-
-    if (error.response) {
-      if (error.response.status === 422) {
-        errorMessage = "Dados inválidos para buscar áudios.";
-      } else if (error.response.status === 401) {
-        errorMessage = "Não autorizado. Faça login novamente.";
-      } else if (error.response.status === 404) {
-        errorMessage = "Áudios não encontrados.";
-      } else {
-        errorMessage = `Erro do servidor: ${error.response.status}`;
-      }
-    } else if (error.request) {
-      errorMessage = "Servidor não respondeu à solicitação.";
-    } else {
-      errorMessage = error.message || "Erro desconhecido.";
-    }
-
-    throw new Error(errorMessage);
-  }
-};
-
-/**
- * Exclui todos os áudios de um participante específico
- * @param participanteId ID do participante
- * @returns Promise que resolve com a resposta da API
- * @throws Error se ocorrer um erro durante a exclusão
- */
-export const deleteAllAudiosByParticipante = async (participanteId: number): Promise<any> => {
-  try {
-    const token = await getToken();
-    if (!token) {
-      throw new Error("Token de autenticação não encontrado.");
-    }
-
-    const response = await api.delete(`/audios/participante/${participanteId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    return response.data;
-  } catch (error: any) {
-    let errorMessage = "Erro ao excluir todos os áudios do participante.";
-
-    if (error.response) {
-      errorMessage =
-        typeof error.response.data === "string"
-          ? error.response.data
-          : JSON.stringify(error.response.data);
     } else if (error.request) {
       errorMessage = "Servidor não respondeu à solicitação.";
     } else {

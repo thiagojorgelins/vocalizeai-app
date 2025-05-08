@@ -312,7 +312,7 @@ export default function EditarUsuarioScreen() {
             />
 
             <ButtonCustom
-              title="Dados do(s) Participante(s)"
+              title="Dados do Participante"
               onPress={() => router.push("/usuario/dados-participante")}
               icon={<MaterialIcons name="person-add" size={20} color="#666" />}
               variant="secondary"

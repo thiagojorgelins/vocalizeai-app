@@ -5,11 +5,9 @@ import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { FormParticipanteProps } from "@/types/FormParticipantProps";
 
+
+
 export default function FormParticipante({
-  nome,
-  setNome,
-  nomeError = "",
-  validateNome,
   idade,
   setIdade,
   genero,
@@ -27,10 +25,6 @@ export default function FormParticipante({
     validateIdade(text);
   };
 
-  const handleNomeChange = (text: string) => {
-    setNome(text);
-    validateNome(text)
-  };
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Informações do Participante</Text>
@@ -47,15 +41,7 @@ export default function FormParticipante({
           <Text style={styles.readOnlyText}>TEA</Text>
         </View>
       </View>
-      <Input
-        label="Nome do Participante"
-        placeholder="Informe o nome do participante"
-        value={nome}
-        onChangeText={handleNomeChange}
-        leftIcon={<MaterialIcons name="people" size={20} color="#666" />}
-        error={!!nomeError}
-        errorMessage={nomeError}
-      />
+
       <Select
         label="Gênero"
         selectedValue={genero}
@@ -130,13 +116,6 @@ export default function FormParticipante({
         error={!!idadeError}
         errorMessage={idadeError}
       />
-      
-      <View style={styles.privacyNoticeContainer}>
-        <MaterialIcons name="security" size={20} color="#757575" />
-        <Text style={styles.privacyNoticeText}>
-          As informações do participante são armazenadas com segurança e não serão utilizadas sem a sua autorização.
-        </Text>
-      </View>
     </View>
   );
 }
@@ -193,22 +172,5 @@ const styles = StyleSheet.create({
     backgroundColor: "#F5F5F5",
     borderRadius: 24,
     elevation: 1,
-  },
-  privacyNoticeContainer: {
-    flexDirection: "row",
-    backgroundColor: "#F5F5F5",
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
-    alignItems: "flex-start",
-  },
-  privacyNoticeText: {
-    fontSize: 12,
-    color: "#757575",
-    marginLeft: 8,
-    flex: 1,
-    lineHeight: 18,
   },
 });

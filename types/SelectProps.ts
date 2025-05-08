@@ -7,5 +7,4 @@ export interface SelectProps {
   options: { label: string; value: string }[];
   style?: StyleProp<ViewStyle>;
   leftIcon?: React.ReactNode;
-  placeholder?: string;
 }
