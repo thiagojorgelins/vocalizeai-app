@@ -74,7 +74,7 @@ export default function HomeScreen() {
         type: "error",
         text1: error instanceof Error ? error.message : "Erro",
         text2: "Erro ao verificar se o participante está cadastrado.",
-      })
+      });
       setHasParticipant(false);
     } finally {
       setCheckingParticipant(false);
@@ -166,7 +166,7 @@ export default function HomeScreen() {
               type: "error",
               text1: fileError instanceof Error ? fileError.message : "Erro",
               text2: "Erro ao verificar o arquivo de gravação.",
-            })
+            });
           }
         }
 
@@ -678,34 +678,36 @@ export default function HomeScreen() {
 
     setIsLoading(true);
 
-    let filePath = outputFile;
-    if (!filePath) {
-      try {
-        filePath = await BackgroundAudioRecorder.getOutputFilePath();
-        if (filePath) {
-          setOutputFile(filePath);
+    try {
+      await BackgroundAudioRecorder.stopRecording();
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      let filePath = outputFile;
+      if (!filePath) {
+        try {
+          filePath = await BackgroundAudioRecorder.getOutputFilePath();
+          if (filePath) {
+            setOutputFile(filePath);
+          }
+        } catch (error) {
+          Toast.show({
+            type: "error",
+            text1: error instanceof Error ? error.message : "Error",
+            text2: "Erro ao buscar caminho do arquivo de áudio.",
+          });
         }
-      } catch (error) {
+      }
+
+      if (!filePath) {
+        setIsLoading(false);
         Toast.show({
           type: "error",
-          text1: error instanceof Error ? error.message : "Error",
-          text2: "Erro ao buscar caminho do arquivo de áudio.",
+          text1: "Nenhuma gravação",
+          text2: "Não foi encontrada gravação para salvar.",
         });
+        return;
       }
-    }
-
-    if (!filePath) {
-      setIsLoading(false);
-      Toast.show({
-        type: "error",
-        text1: "Nenhuma gravação",
-        text2: "Não foi encontrada gravação para salvar.",
-      });
-      return;
-    }
-
-    try {
-      await BackgroundAudioRecorder.forceStopService();
 
       const normalizedPath = filePath.startsWith("file://")
         ? filePath
@@ -714,28 +716,46 @@ export default function HomeScreen() {
       try {
         const fileInfo = await FileSystem.getInfoAsync(normalizedPath);
 
-        if (!fileInfo.exists || fileInfo.size === 0) {
+        if (!fileInfo.exists) {
+          throw new Error(`Arquivo não existe: ${normalizedPath}`);
+        }
+
+        if (fileInfo.size === 0) {
+          throw new Error(`Arquivo vazio: ${normalizedPath}`);
+        }
+
+        if (fileInfo.size < 50) {
           throw new Error(
-            `Arquivo não existe ou está vazio: ${normalizedPath}`
+            `Arquivo suspeito (muito pequeno): ${fileInfo.size} bytes`
           );
         }
-      } catch (fileCheckError) {
+      } catch (error: any) {
         Toast.show({
           type: "error",
           text1: "Erro",
-          text2: "Erro ao verificar arquivo de áudio.",
+          text2: error.message || "Erro ao verificar arquivo de áudio.",
         });
-        throw fileCheckError;
+        setIsLoading(false);
+        return;
       }
+
+      await BackgroundAudioRecorder.forceStopService();
 
       const audioDir = await FileOperations.getAudioDirectory();
       const fileName = `recording_${Date.now()}.m4a`;
       const newUri = `${audioDir}${fileName}`;
 
-      await FileSystem.copyAsync({
-        from: normalizedPath,
-        to: newUri,
-      });
+      const moveSuccessful = await FileOperations.moveFile(
+        normalizedPath,
+        newUri
+      );
+
+      if (!moveSuccessful) {
+        await FileSystem.copyAsync({
+          from: normalizedPath,
+          to: newUri,
+        });
+      }
 
       const duration = recordingTime;
       const existingRecordings = await AsyncStorage.getItem("recordings");
@@ -781,6 +801,25 @@ export default function HomeScreen() {
       setIsLoading(false);
     }
   };
+
+  async function moveAudioFile(sourcePath: any, destPath: string) {
+    if (Platform.OS === "android") {
+      try {
+        if (FileOperations.moveFile) {
+          return await FileOperations.moveFile(sourcePath, destPath);
+        }
+        return false;
+      } catch (error) {
+        Toast.show({
+          type: "error",
+          text1: error instanceof Error ? error.message : "Erro",
+          text2: "Erro ao mover o arquivo de áudio.",
+        });
+        return false;
+      }
+    }
+    return false;
+  }
 
   useFocusEffect(
     useCallback(() => {
