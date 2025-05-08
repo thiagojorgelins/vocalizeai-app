@@ -56,6 +56,49 @@ public class FileOperationsModule extends ReactContextBaseJavaModule {
             promise.reject("DELETE_ERROR", e.getMessage());
         }
     }
+
+    @ReactMethod
+    public void moveFile(String sourcePath, String destPath, Promise promise) {
+        try {
+            if (sourcePath.startsWith("file://")) {
+                sourcePath = sourcePath.substring(7);
+            }
+            if (destPath.startsWith("file://")) {
+                destPath = destPath.substring(7);
+            }
+            File sourceFile = new File(sourcePath);
+            File destFile = new File(destPath);
+            if (!sourceFile.exists()) {
+                promise.reject("MOVE_ERROR", "Source file does not exist");
+                return;
+            }
+
+            if (destFile.getParentFile() != null && !destFile.getParentFile().exists()) {
+                destFile.getParentFile().mkdirs();
+            }
+
+            boolean success = sourceFile.renameTo(destFile);
+
+            if (success) {
+                promise.resolve(true);
+            } else {
+                try {
+                    java.nio.file.Files.copy(
+                        sourceFile.toPath(), 
+                        destFile.toPath(),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING
+                    );
+                    sourceFile.delete();
+                    promise.resolve(true);
+                } catch (Exception e) {
+                    promise.reject("MOVE_ERROR", "Could not move file: " + e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error moving file: " + e.getMessage());
+            promise.reject("MOVE_ERROR", e.getMessage());
+        }
+    }
     
     @ReactMethod
     public void getAppAudioDirectory(Promise promise) {
