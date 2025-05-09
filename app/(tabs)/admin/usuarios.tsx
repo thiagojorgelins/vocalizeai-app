@@ -88,7 +88,13 @@ export default function UsuariosScreen() {
   };
 
   const handleViewAudios = (usuario: Usuario) => {
-    router.push(`/admin/audios/${usuario.id}`);
+    router.push({
+      pathname: "/admin/audios/[id]",
+      params: { 
+        id: usuario.id,
+        fromScreen: "usuarios"
+      }
+    });
   };
 
   const validateForm = () => {

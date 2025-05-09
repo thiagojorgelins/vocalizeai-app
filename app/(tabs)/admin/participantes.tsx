@@ -1,8 +1,7 @@
 import ButtonCustom from "@/components/Button";
 import ConfirmationModal from "@/components/ConfirmationModal";
 import ModalInfoNiveisAutismo from "@/components/ModalInfoNiveisAutismo";
-import Input from "@/components/Inputs/Input";
-import Select from "@/components/Select";
+import FormParticipante from "@/components/FormParticipante";
 import {
   deleteParticipante,
   getAllParticipantes,
@@ -10,7 +9,7 @@ import {
 } from "@/services/participanteService";
 import { ParticipantePayload } from "@/types/ParticipantePayload";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
@@ -23,6 +22,7 @@ import {
   ScrollView,
 } from "react-native";
 import Toast from "react-native-toast-message";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function ParticipantesScreen() {
   const [participantes, setParticipantes] = useState<any[]>([]);
@@ -32,7 +32,7 @@ export default function ParticipantesScreen() {
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isModalLoading, setIsModalLoading] = useState(false);
-
+  const [nome, setNome] = useState("");
   const [idade, setIdade] = useState("");
   const [qtdPalavras, setQtdPalavras] = useState(
     "Não pronuncia nenhuma palavra"
@@ -40,6 +40,9 @@ export default function ParticipantesScreen() {
   const [genero, setGenero] = useState("Masculino");
   const [nivelSuporte, setNivelSuporte] = useState("1");
   const [idadeError, setIdadeError] = useState("");
+  const [nomeError, setNomeError] = useState("");
+
+  const router = useRouter();
 
   const fetchParticipantes = useCallback(async () => {
     setIsLoading(true);
@@ -79,23 +82,36 @@ export default function ParticipantesScreen() {
     return true;
   };
 
-  const handleIdadeChange = (text: string) => {
-    setIdade(text);
-    validateIdade(text);
+  const validateNome = (value: string) => {
+    if (!value.trim()) {
+      setNomeError("O nome é obrigatório");
+      return false;
+    }
+
+    const regex = /^[a-zA-ZÀ-ÿ\s]+$/;
+    if (!regex.test(value)) {
+      setNomeError("O nome deve conter apenas letras e espaços");
+      return false;
+    }
+
+    setNomeError("");
+    return true;
   };
 
   const handleEdit = (participante: any) => {
     setSelectedParticipante(participante);
+    setNome(participante.nome);
     setIdade(participante.idade.toString());
     setQtdPalavras(participante.qtd_palavras);
     setGenero(participante.genero);
     setNivelSuporte(participante.nivel_suporte.toString());
+    setNomeError("");
     setIdadeError("");
     setShowModal(true);
   };
 
   const validateForm = () => {
-    return validateIdade(idade);
+    return validateIdade(idade) && validateNome(nome);
   };
 
   const handleSave = async () => {
@@ -106,6 +122,7 @@ export default function ParticipantesScreen() {
       setIsModalLoading(true);
 
       const payload: ParticipantePayload = {
+        nome: nome,
         idade: parseInt(idade),
         qtd_palavras: qtdPalavras,
         genero,
@@ -156,61 +173,85 @@ export default function ParticipantesScreen() {
     }
   };
 
+  const navigateToAudios = async (participante: any) => {
+    try {
+      router.push({
+        pathname: "/(tabs)/admin/audios/[id]",
+        params: {
+          id: participante.id_usuario,
+          participanteId: participante.id,
+          fromScreen: "admin-participantes",
+          directToAudios: "true"
+        }
+      });
+    } catch (error) {
+      Toast.show({
+        type: "error",
+        text1: "Erro",
+        text2: "Não foi possível acessar os áudios",
+      });
+    }
+  };
+
   const renderParticipante = ({ item }: { item: any }) => (
-    <View style={styles.participanteContainer}>
-      <View style={styles.participanteInfoContainer}>
-        <View style={styles.participanteHeader}>
-          <View style={styles.headerInfo}>
-            <Text style={styles.participanteName}>
-              ID Participante: {item.id}
-            </Text>
-            <View style={styles.participanteBadge}>
-              <MaterialIcons name="medical-services" size={16} color="#FFF" />
-              <Text style={styles.participanteBadgeText}>TEA</Text>
+    <TouchableOpacity onPress={() => navigateToAudios(item)}>
+      <View style={styles.participanteContainer}>
+        <View style={styles.participanteInfoContainer}>
+          <View style={styles.participanteHeader}>
+            <View style={styles.headerInfo}>
+              <Text style={styles.participanteName}>{item.nome}</Text>
+              <View style={styles.participanteBadge}>
+                <MaterialIcons name="medical-services" size={16} color="#FFF" />
+                <Text style={styles.participanteBadgeText}>TEA</Text>
+              </View>
+            </View>
+            <View style={styles.actionButtons}>
+              <TouchableOpacity
+                onPress={(e) => {
+                  e.stopPropagation();
+                  handleEdit(item);
+                }}
+                style={styles.iconButton}
+              >
+                <MaterialIcons name="edit" size={24} color="#2196F3" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={(e) => {
+                  e.stopPropagation();
+                  setSelectedParticipante(item);
+                  setShowConfirmModal(true);
+                }}
+                style={styles.iconButton}
+              >
+                <MaterialIcons name="delete" size={24} color="#F44336" />
+              </TouchableOpacity>
             </View>
           </View>
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              onPress={() => handleEdit(item)}
-              style={styles.iconButton}
-            >
-              <MaterialIcons name="edit" size={24} color="#2196F3" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => {
-                setSelectedParticipante(item);
-                setShowConfirmModal(true);
-              }}
-              style={styles.iconButton}
-            >
-              <MaterialIcons name="delete" size={24} color="#F44336" />
-            </TouchableOpacity>
-          </View>
-        </View>
-        <View style={styles.participanteDetails}>
-          <View style={styles.detailRow}>
-            <MaterialIcons name="cake" size={20} color="#666" />
-            <Text style={styles.detailText}>{item.idade} anos</Text>
-          </View>
-          <View style={styles.detailRow}>
-            <MaterialIcons name="face" size={20} color="#666" />
-            <Text style={styles.detailText}>{item.genero}</Text>
-          </View>
-          <View style={styles.detailRow}>
-            <MaterialIcons name="star" size={20} color="#666" />
-            <Text style={styles.detailText}>
-              {item.nivel_suporte === 0
-                ? "Nível de suporte não informado"
-                : `Nível de suporte ${item.nivel_suporte}`}
-            </Text>
-          </View>
-          <View style={styles.detailRow}>
-            <MaterialIcons name="record-voice-over" size={20} color="#666" />
-            <Text style={styles.detailText}>{item.qtd_palavras}</Text>
+          <View style={styles.participanteDetails}>
+            <View style={styles.detailRow}>
+              <MaterialIcons name="cake" size={20} color="#666" />
+              <Text style={styles.detailText}>{item.idade} anos</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <MaterialIcons name="face" size={20} color="#666" />
+              <Text style={styles.detailText}>{item.genero}</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <MaterialIcons name="star" size={20} color="#666" />
+              <Text style={styles.detailText}>
+                {item.nivel_suporte === 0
+                  ? "Nível de suporte não informado"
+                  : `Nível de suporte ${item.nivel_suporte}`}
+              </Text>
+            </View>
+            <View style={styles.detailRow}>
+              <MaterialIcons name="record-voice-over" size={20} color="#666" />
+              <Text style={styles.detailText}>{item.qtd_palavras}</Text>
+            </View>
           </View>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
@@ -258,107 +299,23 @@ export default function ParticipantesScreen() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              <View style={styles.modalForm}>
-                <View style={styles.readOnlyFieldContainer}>
-                  <Text style={styles.fieldLabel}>
-                    Condição do Participante
-                  </Text>
-                  <View style={styles.readOnlyField}>
-                    <MaterialIcons
-                      name="medical-services"
-                      size={20}
-                      color="#666"
-                      style={styles.fieldIcon}
-                    />
-                    <Text style={styles.readOnlyText}>TEA</Text>
-                  </View>
-                </View>
-
-                <Select
-                  label="Gênero"
-                  selectedValue={genero}
-                  onValueChange={setGenero}
-                  options={[
-                    { label: "Masculino", value: "Masculino" },
-                    { label: "Feminino", value: "Feminino" },
-                    { label: "Outros", value: "Outros" },
-                  ]}
-                  leftIcon={
-                    <MaterialIcons name="face" size={20} color="#666" />
-                  }
-                />
-
-                <View style={styles.supportLevelContainer}>
-                  <View style={styles.selectWithHelpContainer}>
-                    <Select
-                      style={{ minWidth: "85%" }}
-                      label="Nível de Suporte"
-                      selectedValue={nivelSuporte}
-                      onValueChange={setNivelSuporte}
-                      options={[
-                        { label: "Nível 1", value: "1" },
-                        { label: "Nível 2", value: "2" },
-                        { label: "Nível 3", value: "3" },
-                        { label: "Não sei informar", value: "0" },
-                      ]}
-                      leftIcon={
-                        <MaterialIcons name="star" size={20} color="#666" />
-                      }
-                    />
-                    <TouchableOpacity
-                      style={styles.helpButton}
-                      onPress={() => setShowSupportModal(true)}
-                    >
-                      <MaterialIcons name="help" size={22} color="#2196F3" />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                <Select
-                  label="Quantidade de Palavras"
-                  selectedValue={qtdPalavras}
-                  onValueChange={setQtdPalavras}
-                  options={[
-                    {
-                      label: "Não pronuncia nenhuma palavra",
-                      value: "Não pronuncia nenhuma palavra",
-                    },
-                    {
-                      label: "Pronuncia entre 1 e 5 palavras",
-                      value: "Pronuncia entre 1 e 5 palavras",
-                    },
-                    {
-                      label: "Pronuncia entre 6 e 15 palavras",
-                      value: "Pronuncia entre 6 e 15 palavras",
-                    },
-                    {
-                      label: "Pronuncia 16 ou mais palavras",
-                      value: "Pronuncia 16 ou mais palavras",
-                    },
-                  ]}
-                  leftIcon={
-                    <MaterialIcons
-                      name="record-voice-over"
-                      size={20}
-                      color="#666"
-                    />
-                  }
-                />
-
-                <Input
-                  label="Idade do Participante"
-                  placeholder="Informe a idade"
-                  keyboardType="numeric"
-                  value={idade}
-                  maxLength={2}
-                  onChangeText={handleIdadeChange}
-                  leftIcon={
-                    <MaterialIcons name="cake" size={20} color="#666" />
-                  }
-                  error={!!idadeError}
-                  errorMessage={idadeError}
-                />
-              </View>
+              <FormParticipante
+                nome={nome}
+                setNome={setNome}
+                validateNome={validateNome}
+                nomeError={nomeError}
+                idade={idade}
+                setIdade={setIdade}
+                genero={genero}
+                setGenero={setGenero}
+                nivelSuporte={nivelSuporte}
+                setNivelSuporte={setNivelSuporte}
+                qtdPalavras={qtdPalavras}
+                setQtdPalavras={setQtdPalavras}
+                idadeError={idadeError}
+                validateIdade={validateIdade}
+                setShowSupportModal={setShowSupportModal}
+              />
             </ScrollView>
 
             <View style={styles.modalActions}>
@@ -368,7 +325,13 @@ export default function ParticipantesScreen() {
                 color="#2196F3"
                 style={styles.modalButton}
                 icon={<MaterialIcons name="save" size={20} color="#FFF" />}
-                disabled={isModalLoading || !!idadeError || !idade}
+                disabled={
+                  isModalLoading ||
+                  !!idadeError ||
+                  !idade ||
+                  !!nomeError ||
+                  !nome
+                }
               />
             </View>
           </View>
@@ -502,54 +465,10 @@ const styles = StyleSheet.create({
   modalClose: {
     padding: 4,
   },
-  modalForm: {
-    gap: 16,
-  },
   modalActions: {
     marginTop: 24,
   },
   modalButton: {
     marginVertical: 8,
-  },
-  readOnlyFieldContainer: {
-    marginBottom: 8,
-  },
-  fieldLabel: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#424242",
-    marginBottom: 8,
-  },
-  readOnlyField: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F5F5F5",
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
-  fieldIcon: {
-    marginRight: 12,
-  },
-  readOnlyText: {
-    fontSize: 16,
-    color: "#666",
-  },
-  supportLevelContainer: {
-    width: "100%",
-  },
-  selectWithHelpContainer: {
-    width: "100%",
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  helpButton: {
-    padding: 8,
-    marginLeft: 8,
-    backgroundColor: "#F5F5F5",
-    borderRadius: 24,
-    elevation: 1,
   },
 });

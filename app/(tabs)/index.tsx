@@ -1,7 +1,6 @@
 import ButtonCustom from "@/components/Button";
 import ConfirmationModal from "@/components/ConfirmationModal";
 import VocalizationSelect from "@/components/VocalizationSelect";
-import { hasParticipantRegistered } from "@/services/authService";
 import { getVocalizacoes } from "@/services/vocalizacoesService";
 import { Vocalizacao } from "@/types/Vocalizacao";
 import BackgroundAudioRecorder from "@/utils/BackgroundAudioRecorder";
@@ -30,6 +29,9 @@ import {
   View,
 } from "react-native";
 import Toast from "react-native-toast-message";
+import { checkParticipantExists } from "@/services/participanteService";
+import ParticipanteSelector from "@/components/ParticipanteSelect";
+import { getParticipantesByUsuario } from "@/services/participanteService";
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -55,6 +57,11 @@ export default function HomeScreen() {
   const timeUpdateListenerRef = useRef<Function | null>(null);
   const statusChangeListenerRef = useRef<Function | null>(null);
   const recordingCompleteListenerRef = useRef<Function | null>(null);
+  const [participantes, setParticipantes] = useState<any[]>([]);
+  const [selectedParticipanteId, setSelectedParticipanteId] = useState<
+    number | null
+  >(null);
+  const [loadingParticipantes, setLoadingParticipantes] = useState(false);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -64,10 +71,11 @@ export default function HomeScreen() {
       .padStart(2, "0")}`;
   };
 
-  const checkParticipant = async () => {
+  const verifyParticipantExists = async () => {
+    await loadParticipantes(); 
     setCheckingParticipant(true);
     try {
-      const participantExists = await hasParticipantRegistered();
+      const participantExists = await checkParticipantExists();
       setHasParticipant(participantExists);
     } catch (error) {
       Toast.show({
@@ -81,11 +89,34 @@ export default function HomeScreen() {
     }
   };
 
+  const loadParticipantes = async () => {
+    setLoadingParticipantes(true);
+    try {
+      const userId = await AsyncStorage.getItem("userId");
+      if (userId) {
+        const data = await getParticipantesByUsuario(userId);
+        setParticipantes(data);
+
+        if (data.length > 0) {
+          setSelectedParticipanteId(data[0].id);
+        }
+      }
+    } catch (error: any) {
+      Toast.show({
+        type: "error",
+        text1: error instanceof Error ? error.message : "Erro",
+        text2: "Erro ao carregar participantes do usuário",
+      });
+    } finally {
+      setLoadingParticipantes(false);
+    }
+  };
+
   useEffect(() => {
     const setup = async () => {
       await setupApp();
       setupRecordingListeners();
-      await checkParticipant();
+      await verifyParticipantExists();
     };
 
     setup();
@@ -294,7 +325,7 @@ export default function HomeScreen() {
           setLoadingVocalizations(false);
         }
       }
-
+      await loadParticipantes();
       setShowVocalizationModal(true);
     } catch (error) {
       Toast.show({
@@ -666,12 +697,21 @@ export default function HomeScreen() {
     setShowVocalizationModal(false);
   };
 
-  const handleSaveAudio = async () => {
+  async function handleSaveAudio() {
     if (!selectedVocalizationId) {
       Toast.show({
         type: "error",
         text1: "Rótulo não selecionado",
         text2: "Por favor, selecione um rótulo de vocalização.",
+      });
+      return;
+    }
+
+    if (!selectedParticipanteId) {
+      Toast.show({
+        type: "error",
+        text1: "Participante não selecionado",
+        text2: "Por favor, selecione um participante.",
       });
       return;
     }
@@ -771,6 +811,7 @@ export default function HomeScreen() {
         vocalizationName: vocalizations.find(
           (v) => v.id === selectedVocalizationId
         )?.nome,
+        participanteId: selectedParticipanteId,
         status: "pending",
       });
 
@@ -800,32 +841,13 @@ export default function HomeScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  async function moveAudioFile(sourcePath: any, destPath: string) {
-    if (Platform.OS === "android") {
-      try {
-        if (FileOperations.moveFile) {
-          return await FileOperations.moveFile(sourcePath, destPath);
-        }
-        return false;
-      } catch (error) {
-        Toast.show({
-          type: "error",
-          text1: error instanceof Error ? error.message : "Erro",
-          text2: "Erro ao mover o arquivo de áudio.",
-        });
-        return false;
-      }
-    }
-    return false;
   }
 
   useFocusEffect(
     useCallback(() => {
       const resetScreenState = async () => {
-        await checkParticipant();
-
+        await verifyParticipantExists();
+        await loadParticipantes();
         try {
           const status = await BackgroundAudioRecorder.getStatus();
 
@@ -883,7 +905,7 @@ export default function HomeScreen() {
           setElapsedTimeBeforePause(0);
         }
       };
-
+      
       resetScreenState();
 
       return () => {};
@@ -1020,7 +1042,15 @@ export default function HomeScreen() {
                 style={styles.modalClose}
               />
             </View>
-
+            {loadingParticipantes ? (
+              <ActivityIndicator size="large" color="#2196F3" />
+            ) : (
+              <ParticipanteSelector
+                participantes={participantes}
+                selectedParticipanteId={selectedParticipanteId}
+                onParticipanteChange={setSelectedParticipanteId}
+              />
+            )}
             {loadingVocalizations ? (
               <ActivityIndicator size="large" color="#2196F3" />
             ) : (

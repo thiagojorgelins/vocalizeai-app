@@ -194,7 +194,7 @@ export default function LoginScreen() {
             }
           />
           <Text style={{ textAlign: "center", margin: 8, height: 54 }}>
-            v.1.0.2
+            v.1.1.0
           </Text>
         </View>
       </ScrollView>

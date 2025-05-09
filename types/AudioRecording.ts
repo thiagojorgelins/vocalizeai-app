@@ -4,5 +4,6 @@ export interface AudioRecording {
   duration: number;
   vocalizationId: number;
   vocalizationName: string;
+  participanteId?: number | null 
   status: string
 }
