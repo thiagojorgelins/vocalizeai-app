@@ -374,9 +374,8 @@ export default function DadosParticipanteScreen() {
         visible={isModalVisible}
         onCancel={() => setModalVisible(false)}
         onConfirm={handleSave}
-        message={`Deseja confirmar a ${
-          participantId ? "atualização" : "criação"
-        } dos dados do participante?`}
+        message={participantId ? "Deseja confirmar a atualização do participante?" : 
+           "Deseja confirmar a criação de um novo participante?"}
         isLoading={isModalLoading}
       />
   
@@ -389,7 +388,7 @@ export default function DadosParticipanteScreen() {
           <View style={styles.successModalContent}>
             <MaterialIcons name="check-circle" size={48} color="#4CAF50" />
             <Text style={styles.successModalTitle}>
-              Participante {participantId ? "atualizado" : "criado"} com sucesso!
+              Participante criado com sucesso!
             </Text>
             <Text style={styles.successModalMessage}>
               O que você deseja fazer agora?

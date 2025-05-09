@@ -211,7 +211,7 @@ export default function CadastroParticipanteScreen() {
       
       <SuccessModal
         visible={isSuccessModalVisible}
-        title={`Participante ${participantId ? "atualizado" : "criado"} com sucesso!`}
+        title={`Participante criado com sucesso!`}
         primaryButtonText="Criar Outro Participante"
         onPrimaryButtonPress={handleCreateAnother}
         secondaryButtonText="Ir para Home"
