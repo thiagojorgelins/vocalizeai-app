@@ -1,7 +1,14 @@
 import { ParticipantePayload } from "@/types/ParticipantePayload";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import NetInfo from '@react-native-community/netinfo';
 import { api } from "./api";
 import { getToken } from "./util";
+
+const STORAGE_KEYS = {
+  USER_PARTICIPANTES: "user_participantes_"
+};
+
+const EXPIRATION_TIME = 24 * 60 * 60 * 1000;
 
 /**
  * Cria um novo participante
@@ -17,10 +24,6 @@ export const createParticipante = async (data: ParticipantePayload): Promise<any
     });
 
     await AsyncStorage.setItem("hasParticipant", "true");
-
-    if (response.data && response.data.id) {
-      await AsyncStorage.setItem("participantId", response.data.id.toString());
-    }
 
     return response.data;
   } catch (error: any) {
@@ -39,41 +42,119 @@ export const createParticipante = async (data: ParticipantePayload): Promise<any
  * @throws Lança um erro caso o ID não seja fornecido ou a requisição falhe
  */
 export const getParticipante = async (participantId: string): Promise<any> => {
-  const token = await getToken();
-  if (!participantId) throw new Error("ID do participante não fornecido");
-
-  const response = await api.get(`/participantes/${participantId}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-  const participant = response.data;
-  await AsyncStorage.setItem("participantId", participant.id.toString());
-  await AsyncStorage.setItem("hasParticipant", "true");
-
-  return participant;
+  try {
+    if (!participantId) throw new Error("ID do participante não fornecido");
+    
+    const isConnected = await NetInfo.fetch().then(state => state.isConnected);
+    
+    if (isConnected) {
+      try {
+        const token = await getToken();
+        const response = await api.get(`/participantes/${participantId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        const participant = response.data;
+                
+        return participant;
+      } catch (apiError) {
+      }
+    }
+    
+    const userId = await AsyncStorage.getItem("userId");
+    if (userId) {
+      const userParticipantsKey = `${STORAGE_KEYS.USER_PARTICIPANTES}${userId}`;
+      const userParticipantsStr = await AsyncStorage.getItem(userParticipantsKey);
+      
+      if (userParticipantsStr) {
+        const userParticipantsData = JSON.parse(userParticipantsStr);
+        const participants = userParticipantsData.data;
+        
+        if (participants && Array.isArray(participants)) {
+          const participant = participants.find(p => p.id.toString() === participantId);
+          if (participant) {
+            await AsyncStorage.setItem("hasParticipant", "true");
+            return participant;
+          }
+        }
+      }
+    }
+    
+    throw new Error("Participante não encontrado no armazenamento local");
+  } catch (error: any) {
+    
+    if (error instanceof Error) {
+      throw error;
+    }
+    
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Erro ao buscar participante.";
+    throw new Error(errorMessage);
+  }
 };
 
 /**
- * Obtém todos os participantes de um usuário específico
+ * Obtém todos os participantes de um usuário específico e salva no AsyncStorage,
+ * verifica se os dados estão armazenados localmente e se estão expirados.
+ * Se não houver conexão com a internet, tenta usar os dados armazenados
  * @param usuarioId ID do usuário
  * @returns Retorna uma lista de todos os participantes do usuário
  * @throws Lança um erro caso ocorra alguma falha ao buscar os participantes
  */
 export const getParticipantesByUsuario = async (usuarioId: string): Promise<any[]> => {
   try {
-    const token = await getToken();
-    const response = await api.get(`/participantes/usuario/${usuarioId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const isConnected = await NetInfo.fetch().then(state => state.isConnected);
+    const storageKey = `${STORAGE_KEYS.USER_PARTICIPANTES}${usuarioId}`;
     
-    if (response.data && response.data.length > 0) {
-      await AsyncStorage.setItem("hasParticipant", "true");
-    } else {
-      await AsyncStorage.setItem("hasParticipant", "false");
+    const storedDataStr = await AsyncStorage.getItem(storageKey);
+    const storedData = storedDataStr ? JSON.parse(storedDataStr) : null;
+    const isDataExpired = storedData && (Date.now() - storedData.timestamp > EXPIRATION_TIME);
+    
+    if (isConnected && (!storedData || isDataExpired)) {
+      const token = await getToken();
+      const response = await api.get(`/participantes/usuario/${usuarioId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (response.data && response.data.length > 0) {
+        await AsyncStorage.setItem("hasParticipant", "true");
+      } else {
+        await AsyncStorage.setItem("hasParticipant", "false");
+      }
+      
+      const dataToStore = {
+        data: response.data,
+        timestamp: Date.now()
+      };
+      await AsyncStorage.setItem(storageKey, JSON.stringify(dataToStore));
+      
+      return response.data;
     }
     
-    return response.data;
+    if (storedData) {
+      if (storedData.data && storedData.data.length > 0) {
+        await AsyncStorage.setItem("hasParticipant", "true");
+      } else {
+        await AsyncStorage.setItem("hasParticipant", "false");
+      }
+      
+      return storedData.data;
+    }
+    
+    throw new Error("Sem conexão e nenhum dado salvo anteriormente");
   } catch (error: any) {
+    try {
+      const storageKey = `${STORAGE_KEYS.USER_PARTICIPANTES}${usuarioId}`;
+      const storedDataStr = await AsyncStorage.getItem(storageKey);
+      if (storedDataStr) {
+        const storedData = JSON.parse(storedDataStr);
+        return storedData.data;
+      }
+    } catch (localError) {
+    }
+    
     const errorMessage =
       error.response?.data?.detail ||
       error.message ||
@@ -133,8 +214,6 @@ export const deleteParticipante = async (participantId: string): Promise<void> =
     headers: { Authorization: `Bearer ${token}` },
   });
 
-  await AsyncStorage.setItem("hasParticipant", "false");
-  await AsyncStorage.removeItem("participantId");
 };
 
 /**

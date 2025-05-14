@@ -1,13 +1,15 @@
 import { getExpirationTime, updateToken } from "@/services/authService";
+import { getParticipantesByUsuario } from "@/services/participanteService";
+import { getUser } from "@/services/usuarioService";
+import { getVocalizacoes } from "@/services/vocalizacoesService";
 import MaskedView from "@react-native-masked-view/masked-view";
 import * as Font from "expo-font";
 import { Slot, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
-import FlashMessage from "react-native-flash-message";
 import LinearGradient from "react-native-linear-gradient";
-import Toast from 'react-native-toast-message';
+import Toast from "react-native-toast-message";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -30,6 +32,17 @@ export default function RootLayout() {
       setFontsLoaded(true);
       return false;
     }
+  };
+
+  const loadInitialData = async () => {
+    try {
+      const userData = await getUser();
+      const userId = userData.id;
+      if (userId) {
+        await getParticipantesByUsuario(userId);
+      }
+      await getVocalizacoes();
+    } catch (error) {}
   };
 
   const checkToken = async () => {
@@ -56,7 +69,7 @@ export default function RootLayout() {
         type: "error",
         text1: "Erro ao verificar token",
         text2: "Por favor, faça login novamente",
-      })
+      });
       router.replace("/auth/login");
     } finally {
       setTimeout(() => {
@@ -68,6 +81,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     checkToken();
+    loadInitialData();
   }, []);
 
   return (
@@ -120,10 +134,7 @@ export default function RootLayout() {
         </View>
       ) : null}
       <Slot />
-      <Toast 
-        visibilityTime={3000}
-        position="top"
-      />
+      <Toast visibilityTime={3000} position="top" />
     </View>
   );
 }
@@ -146,7 +157,7 @@ const styles = StyleSheet.create({
   },
   splashText: {
     fontSize: 48,
-    fontFamily: 'Quicksand-Bold',
+    fontFamily: "Quicksand-Bold",
     letterSpacing: 1.2,
     textAlign: "center",
     textShadowColor: "rgba(0, 0, 0, 0.1)",

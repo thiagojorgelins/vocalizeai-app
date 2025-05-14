@@ -100,14 +100,10 @@ const doLogin = async (email: string, senha: string): Promise<string> => {
         await AsyncStorage.setItem("username", userResponse.data.nome);
 
         const userData = await getUser();
-        
+
         if (userData.participantes && userData.participantes.length > 0) {
           await AsyncStorage.setItem("hasParticipant", "true");
-          
-          if (userData.participantes[0] && userData.participantes[0].id) {
-            await AsyncStorage.setItem("participantId", userData.participantes[0].id.toString());
-          }
-          
+
           router.replace("/(tabs)");
         } else {
           await AsyncStorage.setItem("hasParticipant", "false");
@@ -294,9 +290,20 @@ const confirmRegistration = async (email: string, codigoConfirmacao: string): Pr
  * Efetua o logout do usuário, removendo dados do AsyncStorage e interrompendo a rotina de atualização do token
  */
 const doLogout = async (): Promise<void> => {
-  await AsyncStorage.multiRemove(["token", "tokenExpires", "role", "usuarioId", "email", "senha", "username", "hasParticipant", "participantId"]);
-  stopTokenUpdateRoutine();
-  router.push("/auth/login");
+  try {
+    const allKeys = await AsyncStorage.getAllKeys();
+    const keysToRemove = allKeys.filter(key => key !== "recordings");
+    
+    if (keysToRemove.length > 0) {
+      await AsyncStorage.multiRemove(keysToRemove);
+    }
+    
+    stopTokenUpdateRoutine();
+  
+    router.push("/auth/login");
+  } catch (error) {
+    router.push("/auth/login");
+  }
 };
 
 /**

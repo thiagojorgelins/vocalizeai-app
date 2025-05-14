@@ -2,17 +2,18 @@ import ButtonCustom from "@/components/Button";
 import ConfirmationModal from "@/components/ConfirmationModal";
 import FormParticipante from "@/components/FormParticipante";
 import ModalInfoNiveisAutismo from "@/components/ModalInfoNiveisAutismo";
+import ParticipantesList from "@/components/ParticipantesList";
 import { doLogout } from "@/services/authService";
 import {
   createParticipante,
   getParticipante,
-  updateParticipante,
   getParticipantesByUsuario,
+  updateParticipante,
 } from "@/services/participanteService";
-import { getUser } from "@/services/usuarioService";
 import { ParticipantePayload } from "@/types/ParticipantePayload";
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import NetInfo from '@react-native-community/netinfo';
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -26,7 +27,6 @@ import {
 } from "react-native";
 import * as Animatable from "react-native-animatable";
 import Toast from "react-native-toast-message";
-import ParticipantesList from "../../../components/ParticipantesList";
 
 export default function DadosParticipanteScreen() {
   const [nome, setNome] = useState("");
@@ -92,24 +92,55 @@ export default function DadosParticipanteScreen() {
   const loadParticipantData = useCallback(async (id: string) => {
     setIsLoading(true);
     try {
-      const participantData = await getParticipante(id);
-      setParticipantId(participantData.id.toString());
-      setIdade(participantData.idade.toString());
-      setQtdPalavras(participantData.qtd_palavras);
-      setGenero(participantData.genero);
-      setNivelSuporte(participantData.nivel_suporte.toString());
-      setNome(participantData.nome || "");
-      setShowParticipantsList(false);
+      const isConnected = await NetInfo.fetch().then(
+        (state) => state.isConnected
+      );
+
+      if (isConnected) {
+        try {
+          const participantData = await getParticipante(id);
+          setParticipantId(participantData.id.toString());
+          setIdade(participantData.idade.toString());
+          setQtdPalavras(participantData.qtd_palavras);
+          setGenero(participantData.genero);
+          setNivelSuporte(participantData.nivel_suporte.toString());
+          setNome(participantData.nome || "");
+          setShowParticipantsList(false);
+          return;
+        } catch (apiError) {
+        }
+      }
+
+      const userId = await AsyncStorage.getItem("userId");
+      const storageKey = `user_participantes_${userId}`;
+      const storedDataStr = await AsyncStorage.getItem(storageKey);
+
+      if (storedDataStr) {
+        const storedData = JSON.parse(storedDataStr);
+        const participant = storedData.data.find(
+          (p: any) => p.id.toString() === id
+        );
+
+        if (participant) {
+          setParticipantId(participant.id.toString());
+          setIdade(participant.idade.toString());
+          setQtdPalavras(participant.qtd_palavras);
+          setGenero(participant.genero);
+          setNivelSuporte(participant.nivel_suporte.toString());
+          setNome(participant.nome || "");
+          setShowParticipantsList(false);
+          return;
+        }
+      }
+
+      throw new Error("Participante não encontrado no armazenamento local");
     } catch (error: any) {
-      const errorMessage =
-        error.response?.data?.detail ||
-        error.message ||
-        "Erro ao carregar os dados do participante.";
       Toast.show({
         type: "error",
         text1: "Erro ao carregar dados",
-        text2: errorMessage,
+        text2: error.message || "Participante não encontrado",
       });
+      setShowParticipantsList(true);
     } finally {
       setIsLoading(false);
     }
@@ -168,7 +199,7 @@ export default function DadosParticipanteScreen() {
 
     setNomeError("");
     return true;
-  }
+  };
 
   const validateIdade = (value: string) => {
     if (!value.trim()) {
@@ -202,7 +233,7 @@ export default function DadosParticipanteScreen() {
         qtd_palavras: qtdPalavras,
         genero,
         nivel_suporte: parseInt(nivelSuporte),
-        nome
+        nome,
       };
 
       setModalVisible(false);
@@ -225,7 +256,6 @@ export default function DadosParticipanteScreen() {
         if (response && response.id) {
           setParticipantId(response.id.toString());
           await AsyncStorage.setItem("hasParticipant", "true");
-          await AsyncStorage.setItem("participantId", response.id.toString());
         }
 
         Toast.show({
@@ -268,7 +298,7 @@ export default function DadosParticipanteScreen() {
           <Text style={styles.loadingText}>Carregando...</Text>
         </View>
       )}
-  
+
       {showParticipantsList ? (
         <ParticipantesList
           participantes={participantes}
@@ -292,19 +322,19 @@ export default function DadosParticipanteScreen() {
             <Text style={styles.title}>
               {participantId ? "Editar Participante" : "Novo Participante"}
             </Text>
-  
+
             {redirectedFromHome && (
               <View style={styles.warningContainer}>
                 <MaterialIcons name="warning" size={24} color="#FF9800" />
                 <Text style={styles.warningText}>
-                  Por favor, preencha os dados do participante antes de gravar as
-                  vocalizações.
+                  Por favor, preencha os dados do participante antes de gravar
+                  as vocalizações.
                 </Text>
               </View>
             )}
           </View>
-  
-          <View style={styles.card}>  
+
+          <View style={styles.card}>
             <FormParticipante
               nome={nome}
               setNome={setNome}
@@ -322,19 +352,23 @@ export default function DadosParticipanteScreen() {
               validateIdade={validateIdade}
               setShowSupportModal={setShowSupportModal}
             />
-  
+
             <View style={styles.actions}>
               <ButtonCustom
                 title={
-                  participantId ? "Atualizar Participante" : "Criar Participante"
+                  participantId
+                    ? "Atualizar Participante"
+                    : "Criar Participante"
                 }
                 onPress={handleOpenModal}
                 icon={<MaterialIcons name="save" size={20} color="#FFF" />}
                 color="#2196F3"
                 style={styles.mainButton}
-                disabled={!!idadeError || !idade.trim() || !!nomeError || !nome.trim()}
+                disabled={
+                  !!idadeError || !idade.trim() || !!nomeError || !nome.trim()
+                }
               />
-  
+
               {participantId && (
                 <ButtonCustom
                   title="Voltar para Lista"
@@ -344,15 +378,17 @@ export default function DadosParticipanteScreen() {
                   disabled={isLoading}
                 />
               )}
-  
+
               <ButtonCustom
                 title="Voltar para Dados do Usuário"
                 variant="secondary"
                 onPress={() => router.push("/usuario/editar-usuario")}
-                icon={<MaterialIcons name="arrow-back" size={20} color="#666" />}
+                icon={
+                  <MaterialIcons name="arrow-back" size={20} color="#666" />
+                }
                 disabled={isLoading}
               />
-  
+
               <ButtonCustom
                 title="Sair do App"
                 onPress={doLogout}
@@ -364,21 +400,24 @@ export default function DadosParticipanteScreen() {
           </View>
         </ScrollView>
       )}
-      
+
       <ModalInfoNiveisAutismo
         visible={showSupportModal}
         onClose={() => setShowSupportModal(false)}
       />
-      
+
       <ConfirmationModal
         visible={isModalVisible}
         onCancel={() => setModalVisible(false)}
         onConfirm={handleSave}
-        message={participantId ? "Deseja confirmar a atualização do participante?" : 
-           "Deseja confirmar a criação de um novo participante?"}
+        message={
+          participantId
+            ? "Deseja confirmar a atualização do participante?"
+            : "Deseja confirmar a criação de um novo participante?"
+        }
         isLoading={isModalLoading}
       />
-  
+
       <Modal
         visible={isSuccessModalVisible}
         transparent={true}
@@ -397,12 +436,16 @@ export default function DadosParticipanteScreen() {
               <ButtonCustom
                 title="Criar Outro Participante"
                 onPress={handleCreateAnother}
-                icon={<MaterialIcons name="person-add" size={20} color="#FFF" />}
+                icon={
+                  <MaterialIcons name="person-add" size={20} color="#FFF" />
+                }
                 color="#2196F3"
                 style={styles.successModalButton}
               />
               <ButtonCustom
-                title={redirectedFromHome ? "Ir para Home" : "Voltar para Lista"}
+                title={
+                  redirectedFromHome ? "Ir para Home" : "Voltar para Lista"
+                }
                 onPress={handleGoToHome}
                 icon={<MaterialIcons name="home" size={20} color="#FFF" />}
                 color="#4CAF50"
