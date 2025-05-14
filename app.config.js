@@ -4,7 +4,7 @@ export default {
   expo: {
     name: "VocalizeAI",
     slug: "vocalizeai",
-    version: "1.0.0",
+    version: "1.1.1",
     orientation: "portrait",
     icon: "./assets/images/splashscreen_logo.png",
     scheme: "myapp",

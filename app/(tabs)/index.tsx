@@ -1,6 +1,11 @@
 import ButtonCustom from "@/components/Button";
 import ConfirmationModal from "@/components/ConfirmationModal";
+import ParticipanteSelector from "@/components/ParticipanteSelect";
 import VocalizationSelect from "@/components/VocalizationSelect";
+import {
+  checkParticipantExists,
+  getParticipantesByUsuario,
+} from "@/services/participanteService";
 import { getVocalizacoes } from "@/services/vocalizacoesService";
 import { Vocalizacao } from "@/types/Vocalizacao";
 import BackgroundAudioRecorder from "@/utils/BackgroundAudioRecorder";
@@ -29,9 +34,6 @@ import {
   View,
 } from "react-native";
 import Toast from "react-native-toast-message";
-import { checkParticipantExists } from "@/services/participanteService";
-import ParticipanteSelector from "@/components/ParticipanteSelect";
-import { getParticipantesByUsuario } from "@/services/participanteService";
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -72,7 +74,6 @@ export default function HomeScreen() {
   };
 
   const verifyParticipantExists = async () => {
-    await loadParticipantes(); 
     setCheckingParticipant(true);
     try {
       const participantExists = await checkParticipantExists();
@@ -905,7 +906,7 @@ export default function HomeScreen() {
           setElapsedTimeBeforePause(0);
         }
       };
-      
+
       resetScreenState();
 
       return () => {};
