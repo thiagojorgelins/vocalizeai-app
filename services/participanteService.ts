@@ -22,8 +22,28 @@ export const createParticipante = async (data: ParticipantePayload): Promise<any
     const response = await api.post(`/participantes`, data, {
       headers: { Authorization: `Bearer ${token}` },
     });
-
+    
     await AsyncStorage.setItem("hasParticipant", "true");
+    await AsyncStorage.setItem("participantId", response.data.id.toString());
+    
+    const userId = await AsyncStorage.getItem("userId");
+    if (userId) {
+      const storageKey = `${STORAGE_KEYS.USER_PARTICIPANTES}${userId}`;
+      const storedDataStr = await AsyncStorage.getItem(storageKey);
+      
+      if (storedDataStr) {
+        const storedData = JSON.parse(storedDataStr);
+        storedData.data.push(response.data);
+        storedData.timestamp = Date.now();
+        await AsyncStorage.setItem(storageKey, JSON.stringify(storedData));
+      } else {
+        const newData = {
+          data: [response.data],
+          timestamp: Date.now()
+        };
+        await AsyncStorage.setItem(storageKey, JSON.stringify(newData));
+      }
+    }
 
     return response.data;
   } catch (error: any) {
@@ -193,13 +213,40 @@ export const getAllParticipantes = async (): Promise<any[]> => {
  */
 export const updateParticipante = async (
   participantId: string, data: ParticipantePayload): Promise<void> => {
-  const token = await getToken();
-
-  await api.patch(`/participantes/${participantId}`, data, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-  await AsyncStorage.setItem("hasParticipant", "true");
+  try {
+    const token = await getToken();
+    const response = await api.patch(`/participantes/${participantId}`, data, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    
+    await AsyncStorage.setItem("hasParticipant", "true");
+    
+    const userId = await AsyncStorage.getItem("userId");
+    if (userId) {
+      const storageKey = `${STORAGE_KEYS.USER_PARTICIPANTES}${userId}`;
+      const storedDataStr = await AsyncStorage.getItem(storageKey);
+      
+      if (storedDataStr) {
+        const storedData = JSON.parse(storedDataStr);
+        const updatedData = storedData.data.map((participant: any) => {
+          if (participant.id.toString() === participantId) {
+            return { ...participant, ...data };
+          }
+          return participant;
+        });
+        
+        storedData.data = updatedData;
+        storedData.timestamp = Date.now();
+        await AsyncStorage.setItem(storageKey, JSON.stringify(storedData));
+      }
+    }
+  } catch (error: any) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Erro ao atualizar participante.";
+    throw new Error(errorMessage);
+  }
 };
 
 /**
@@ -208,12 +255,43 @@ export const updateParticipante = async (
  * @throws Lança um erro caso a exclusão falhe
  */
 export const deleteParticipante = async (participantId: string): Promise<void> => {
-  const token = await getToken();
-
-  await api.delete(`/participantes/${participantId}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
+  try {
+    const token = await getToken();
+    await api.delete(`/participantes/${participantId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    
+    const currentParticipantId = await AsyncStorage.getItem("participantId");
+    if (currentParticipantId === participantId) {
+      await AsyncStorage.removeItem("participantId");
+    }
+    
+    const userId = await AsyncStorage.getItem("userId");
+    if (userId) {
+      const storageKey = `${STORAGE_KEYS.USER_PARTICIPANTES}${userId}`;
+      const storedDataStr = await AsyncStorage.getItem(storageKey);
+      
+      if (storedDataStr) {
+        const storedData = JSON.parse(storedDataStr);
+        const updatedData = storedData.data.filter((participant: any) => 
+          participant.id.toString() !== participantId);
+        
+        storedData.data = updatedData;
+        storedData.timestamp = Date.now();
+        await AsyncStorage.setItem(storageKey, JSON.stringify(storedData));
+        
+        if (updatedData.length === 0) {
+          await AsyncStorage.setItem("hasParticipant", "false");
+        }
+      }
+    }
+  } catch (error: any) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Erro ao excluir participante.";
+    throw new Error(errorMessage);
+  }
 };
 
 /**

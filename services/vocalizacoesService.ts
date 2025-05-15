@@ -87,15 +87,31 @@ export const getVocalizacoes = async (): Promise<Vocalizacao[]> => {
  * @throws Lança um erro caso nome ou descrição não sejam fornecidos ou ocorra falha ao criar
  */
 export const createVocalizacoes = async (nome: string, descricao: string): Promise<void> => {
+  const STORAGE_KEY = "vocalizations";
+  
   try {
     if (!nome || !descricao) {
       throw new Error("Nome e descrição são obrigatórios.");
     }
     const token = await getToken();
 
-    await api.post(`/vocalizacoes`, { nome, descricao }, {
+    const response = await api.post(`/vocalizacoes`, { nome, descricao }, {
       headers: { Authorization: `Bearer ${token}` },
     });
+    
+    const storedDataStr = await AsyncStorage.getItem(STORAGE_KEY);
+    if (storedDataStr) {
+      const storedData = JSON.parse(storedDataStr);
+      storedData.data.push(response.data);
+      storedData.timestamp = Date.now();
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(storedData));
+    } else {
+      const newData = {
+        data: [response.data],
+        timestamp: Date.now()
+      };
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
+    }
   } catch (error: any) {
     const errorMessage =
       error.response?.data?.detail ||
@@ -103,7 +119,7 @@ export const createVocalizacoes = async (nome: string, descricao: string): Promi
       "Erro ao criar vocalizações.";
     throw new Error(errorMessage);
   }
-}
+};
 
 /**
  * Atualiza uma vocalização específica
@@ -112,6 +128,8 @@ export const createVocalizacoes = async (nome: string, descricao: string): Promi
  * @throws Lança um erro caso o usuário não tenha permissão ou ocorra falha na atualização
  */
 export const updateVocalizacoes = async (vocalizacaoId: string, data: Vocalizacao): Promise<void> => {
+  const STORAGE_KEY = "vocalizations";
+  
   try {
     const token = await getToken();
     const role = await getRole()
@@ -124,6 +142,21 @@ export const updateVocalizacoes = async (vocalizacaoId: string, data: Vocalizaca
     await api.patch(`/vocalizacoes/${vocalizacaoId}`, data, {
       headers: { Authorization: `Bearer ${token}` },
     });
+    
+    const storedDataStr = await AsyncStorage.getItem(STORAGE_KEY);
+    if (storedDataStr) {
+      const storedData = JSON.parse(storedDataStr);
+      const updatedData = storedData.data.map((vocalizacao: Vocalizacao) => {
+        if (vocalizacao.id.toString() === vocalizacaoId) {
+          return { ...vocalizacao, ...data };
+        }
+        return vocalizacao;
+      });
+      
+      storedData.data = updatedData;
+      storedData.timestamp = Date.now();
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(storedData));
+    }
   } catch (error: any) {
     const errorMessage =
       error.response?.data?.detail ||
@@ -131,7 +164,7 @@ export const updateVocalizacoes = async (vocalizacaoId: string, data: Vocalizaca
       "Erro ao atualizar vocalizações.";
     throw new Error(errorMessage);
   }
-}
+};
 
 /**
  * Deleta uma vocalização específica
@@ -139,6 +172,8 @@ export const updateVocalizacoes = async (vocalizacaoId: string, data: Vocalizaca
  * @throws Lança um erro caso o usuário não tenha permissão ou ocorra falha na exclusão
  */
 export const deleteVocalizacoes = async (vocalizacaoId: string): Promise<void> => {
+  const STORAGE_KEY = "vocalizations";
+  
   try {
     const token = await getToken();
     const role = await getRole()
@@ -150,6 +185,17 @@ export const deleteVocalizacoes = async (vocalizacaoId: string): Promise<void> =
     await api.delete(`/vocalizacoes/${vocalizacaoId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
+    
+    const storedDataStr = await AsyncStorage.getItem(STORAGE_KEY);
+    if (storedDataStr) {
+      const storedData = JSON.parse(storedDataStr);
+      const updatedData = storedData.data.filter((vocalizacao: Vocalizacao) => 
+        vocalizacao.id.toString() !== vocalizacaoId);
+      
+      storedData.data = updatedData;
+      storedData.timestamp = Date.now();
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(storedData));
+    }
   } catch (error: any) {
     const errorMessage =
       error.response?.data?.detail ||
@@ -157,4 +203,4 @@ export const deleteVocalizacoes = async (vocalizacaoId: string): Promise<void> =
       "Erro ao deletar vocalizações.";
     throw new Error(errorMessage);
   }
-}
+};
