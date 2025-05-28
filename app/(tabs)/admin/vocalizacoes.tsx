@@ -248,7 +248,7 @@ export default function VocalizacoesScreen() {
             )}
           </Text>
           <View style={styles.actionButtons}>
-            {canEditVocalizacao(item) && (
+            {canEditVocalizacao(item) && isConnected && (
               <TouchableOpacity
                 onPress={() => handleEdit(item)}
                 style={styles.iconButton}
@@ -256,7 +256,7 @@ export default function VocalizacoesScreen() {
                 <MaterialIcons name="edit" size={24} color="#2196F3" />
               </TouchableOpacity>
             )}
-            {isAdmin && (
+            {isAdmin && isConnected &&(
               <TouchableOpacity
                 onPress={() => {
                   setSelectedVocalizacao(item);
