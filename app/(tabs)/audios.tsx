@@ -72,6 +72,7 @@ export default function AudiosScreen() {
     type: "success" | "error" | "info" | "none";
     text: string;
   }>({ type: "none", text: "" });
+  const [isConnected, setIsConnected] = useState(true);
 
   const showModalMessage = (
     type: "success" | "error" | "info",
@@ -101,7 +102,19 @@ export default function AudiosScreen() {
       setLoadingParticipantes(false);
     }
   };
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      setIsConnected(state.isConnected ?? false);
+    });
 
+    NetInfo.fetch().then((state) => {
+      setIsConnected(state.isConnected ?? false);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
   useEffect(() => {
     return () => {
       stopAudioPlayback();
@@ -930,9 +943,16 @@ export default function AudiosScreen() {
         color="#2196F3"
         style={styles.batchUploadButton}
         icon={<MaterialIcons name="cloud-upload" size={20} color="#FFF" />}
-        disabled={getPendingCount() === 0 || sendingBatch}
+        disabled={getPendingCount() === 0 || sendingBatch || !isConnected}
       />
-
+      {!isConnected && (
+        <View style={styles.offlineMessage}>
+          <MaterialIcons name="wifi-off" size={16} color="#F44336" />
+          <Text style={styles.offlineText}>
+            Sem conexão com internet. O envio de áudios está indisponível.
+          </Text>
+        </View>
+      )}
       {renderLegend()}
 
       {sendingBatch && (
@@ -1541,5 +1561,18 @@ const styles = StyleSheet.create({
   filterStatsText: {
     fontSize: 12,
     color: "#666",
+  },
+  offlineMessage: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFEBEE",
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  offlineText: {
+    marginLeft: 8,
+    color: "#D32F2F",
+    fontSize: 14,
   },
 });

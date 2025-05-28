@@ -11,8 +11,9 @@ import {
 import { Vocalizacao } from "@/types/Vocalizacao";
 import translateVocalization from "@/utils/TranslateVocalization";
 import { MaterialIcons } from "@expo/vector-icons";
+import NetInfo from "@react-native-community/netinfo";
 import { useFocusEffect } from "expo-router";
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -35,6 +36,7 @@ export default function VocalizacoesScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState(true);
 
   useEffect(() => {
     const fetchUserId = async () => {
@@ -50,7 +52,18 @@ export default function VocalizacoesScreen() {
       }
     };
 
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      setIsConnected(state.isConnected ?? false);
+    });
+
+    NetInfo.fetch().then((state) => {
+      setIsConnected(state.isConnected ?? false);
+    });
+
     fetchUserId();
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const checkAdminRole = useCallback(async () => {
@@ -280,8 +293,16 @@ export default function VocalizacoesScreen() {
         color="#2196F3"
         style={styles.addButton}
         icon={<MaterialIcons name="add" size={12} color="#FFF" />}
+        disabled={!isConnected}
       />
-
+      {!isConnected && (
+        <View style={styles.offlineMessage}>
+          <MaterialIcons name="wifi-off" size={16} color="#F44336" />
+          <Text style={styles.offlineText}>
+            Sem conexão com internet. Algumas funções estão indisponíveis.
+          </Text>
+        </View>
+      )}
       <FlatList
         data={vocalizacoes}
         renderItem={renderVocalizacoes}
@@ -477,5 +498,18 @@ const styles = StyleSheet.create({
   },
   modalActions: {
     marginTop: 24,
+  },
+  offlineMessage: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFEBEE",
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  offlineText: {
+    marginLeft: 8,
+    color: "#D32F2F",
+    fontSize: 14,
   },
 });
