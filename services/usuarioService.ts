@@ -3,6 +3,13 @@ import { UsuarioUpdate } from "@/types/UsuarioUpdate";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "./api";
 import { getToken, getUserId } from "./util";
+import NetInfo from '@react-native-community/netinfo';
+
+const STORAGE_KEYS = {
+  USER_DATA: "user_data",
+};
+
+const EXPIRATION_TIME = 24 * 60 * 60 * 1000;
 
 /**
  * Obtém todos os usuários cadastrados no sistema
@@ -27,22 +34,52 @@ export const getAllUsers = async (): Promise<any> => {
 }
 
 /**
- * Obtém os dados do usuário atualmente autenticado
+ * Obtém os dados do usuário atualmente autenticado salva no AsyncStorage,
+ * verifica se os dados estão armazenados localmente e se estão expirados.
+ * Se não houver conexão com a internet, tenta usar os dados armazenados
  * @returns Promise que resolve com os dados do usuário
  * @throws Error se o usuário não estiver autenticado ou se ocorrer um erro na requisição
  */
 export const getUser = async (): Promise<any> => {
   try {
-    const token = await getToken();
+    const isConnected = await NetInfo.fetch().then(state => state.isConnected);
     const userId = await getUserId();
     if (!userId) throw new Error("Usuário não autenticado");
-
-    const response = await api.get(`/usuarios/${userId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    return response.data;
+    
+    const storedDataStr = await AsyncStorage.getItem(STORAGE_KEYS.USER_DATA);
+    const storedData = storedDataStr ? JSON.parse(storedDataStr) : null;
+    const isDataExpired = storedData && (Date.now() - storedData.timestamp > EXPIRATION_TIME);
+    
+    if (isConnected && (!storedData || isDataExpired)) {
+      const token = await getToken();
+      const response = await api.get(`/usuarios/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      const dataToStore = {
+        data: response.data,
+        timestamp: Date.now()
+      };
+      await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(dataToStore));
+      
+      return response.data;
+    }
+    
+    if (storedData) {
+      return storedData.data;
+    }
+    
+    throw new Error("Sem conexão e nenhum dado salvo anteriormente");
   } catch (error: any) {
+    try {
+      const storedDataStr = await AsyncStorage.getItem(STORAGE_KEYS.USER_DATA);
+      if (storedDataStr) {
+        const storedData = JSON.parse(storedDataStr);
+        return storedData.data;
+      }
+    } catch (localError) {
+    }
+    
     const errorMessage =
       error.response?.data?.detail ||
       error.message ||

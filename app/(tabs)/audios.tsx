@@ -1,7 +1,12 @@
 import ButtonCustom from "@/components/Button";
 import ConfirmationModal from "@/components/ConfirmationModal";
+import {
+  default as ParticipanteSelect,
+  default as ParticipanteSelector,
+} from "@/components/ParticipanteSelect";
 import VocalizationSelect from "@/components/VocalizationSelect";
 import { uploadAudioFile } from "@/services/audioService";
+import { getParticipantesByUsuario } from "@/services/participanteService";
 import { getVocalizacoes } from "@/services/vocalizacoesService";
 import { AudioRecording } from "@/types/AudioRecording";
 import { Vocalizacao } from "@/types/Vocalizacao";
@@ -9,6 +14,7 @@ import FileOperations from "@/utils/FileOperations";
 import translateVocalization from "@/utils/TranslateVocalization";
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import NetInfo from "@react-native-community/netinfo";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import { useFocusEffect } from "expo-router";
@@ -25,9 +31,6 @@ import {
   View,
 } from "react-native";
 import Toast from "react-native-toast-message";
-import ParticipanteSelector from "@/components/ParticipanteSelect";
-import { getParticipantesByUsuario } from "@/services/participanteService";
-import ParticipanteSelect from "@/components/ParticipanteSelect";
 
 export default function AudiosScreen() {
   const [recordings, setRecordings] = useState<AudioRecording[]>([]);
@@ -65,6 +68,21 @@ export default function AudiosScreen() {
     null
   );
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
+  const [modalMessage, setModalMessage] = useState<{
+    type: "success" | "error" | "info" | "none";
+    text: string;
+  }>({ type: "none", text: "" });
+  const [isConnected, setIsConnected] = useState(true);
+
+  const showModalMessage = (
+    type: "success" | "error" | "info",
+    text: string
+  ) => {
+    setModalMessage({ type, text });
+    setTimeout(() => {
+      setModalMessage({ type: "none", text: "" });
+    }, 3000);
+  };
 
   const loadParticipantes = async () => {
     setLoadingParticipantes(true);
@@ -84,7 +102,19 @@ export default function AudiosScreen() {
       setLoadingParticipantes(false);
     }
   };
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      setIsConnected(state.isConnected ?? false);
+    });
 
+    NetInfo.fetch().then((state) => {
+      setIsConnected(state.isConnected ?? false);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
   useEffect(() => {
     return () => {
       stopAudioPlayback();
@@ -180,13 +210,6 @@ export default function AudiosScreen() {
 
     const participante = participantes.find((p) => p.id === participanteId);
     return participante ? participante.nome : `Participante ${participanteId}`;
-  };
-
-  const getVocalizationName = (vocalizationId: number) => {
-    const vocalization = vocalizations.find((v) => v.id === vocalizationId);
-    return vocalization
-      ? translateVocalization[vocalization.nome] || vocalization.nome
-      : "Não definido";
   };
 
   const formatTime = (seconds: number) => {
@@ -545,16 +568,28 @@ export default function AudiosScreen() {
 
   async function handleUpload(idVocalizacao: number, fileUri: string) {
     if (!selectedAudioParticipanteId) {
-      Toast.show({
-        type: "error",
-        text1: "Participante não selecionado",
-        text2: "Por favor, selecione um participante para enviar o áudio.",
-      });
+      showModalMessage(
+        "error",
+        "Por favor, selecione um participante para enviar o áudio."
+      );
       return;
     }
 
     setSendingAudio(true);
     try {
+      const isConnected = await NetInfo.fetch().then(
+        (state) => state.isConnected
+      );
+
+      if (!isConnected) {
+        showModalMessage(
+          "error",
+          "Sem conexão com a internet. Tente novamente quando estiver online."
+        );
+        setSendingAudio(false);
+        return;
+      }
+
       await uploadAudioFile(
         idVocalizacao,
         fileUri,
@@ -577,19 +612,18 @@ export default function AudiosScreen() {
           "recordings",
           JSON.stringify(updateRecordings)
         );
-        setShowOptionsModal(false);
+
+        showModalMessage("success", "Áudio enviado com sucesso!");
+
+        setTimeout(() => {
+          setShowOptionsModal(false);
+        }, 1500);
       }
-      Toast.show({
-        type: "success",
-        text1: "Sucesso",
-        text2: "Áudio enviado com sucesso!",
-      });
     } catch (error) {
-      Toast.show({
-        type: "error",
-        text1: error instanceof Error ? error.message : "Erro",
-        text2: "Erro ao enviar áudio",
-      });
+      showModalMessage(
+        "error",
+        error instanceof Error ? error.message : "Erro ao enviar áudio"
+      );
     } finally {
       setSendingAudio(false);
     }
@@ -909,9 +943,16 @@ export default function AudiosScreen() {
         color="#2196F3"
         style={styles.batchUploadButton}
         icon={<MaterialIcons name="cloud-upload" size={20} color="#FFF" />}
-        disabled={getPendingCount() === 0 || sendingBatch}
+        disabled={getPendingCount() === 0 || sendingBatch || !isConnected}
       />
-
+      {!isConnected && (
+        <View style={styles.offlineMessage}>
+          <MaterialIcons name="wifi-off" size={16} color="#F44336" />
+          <Text style={styles.offlineText}>
+            Sem conexão com internet. O envio de áudios está indisponível.
+          </Text>
+        </View>
+      )}
       {renderLegend()}
 
       {sendingBatch && (
@@ -992,83 +1033,119 @@ export default function AudiosScreen() {
         animationType="slide"
         onRequestClose={() => setShowOptionsModal(false)}
       >
-        <ScrollView>
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Dados da Gravação</Text>
-                <TouchableOpacity
-                  onPress={() => setShowOptionsModal(false)}
-                  style={styles.modalClose}
-                >
-                  <MaterialIcons name="close" size={24} color="#666" />
-                </TouchableOpacity>
-              </View>
-              {selectedRecording && (
-                <View style={styles.recordingDetailCard}>
-                  <View style={styles.infoRow}>
-                    <MaterialIcons
-                      name="record-voice-over"
-                      size={20}
-                      color="#666"
-                    />
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Dados da Gravação</Text>
+              <TouchableOpacity
+                onPress={() => setShowOptionsModal(false)}
+                style={styles.modalClose}
+              >
+                <MaterialIcons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
 
-                    <Text style={styles.infoText} numberOfLines={1}>
-                      {selectedRecording.uri.split("/").pop()?.split("_")[1] ||
-                        "Gravação"}
-                    </Text>
-                  </View>
-                  <View style={styles.infoRow}>
+            {modalMessage.type !== "none" && (
+              <View
+                style={[
+                  styles.modalMessage,
+                  modalMessage.type === "error" && styles.modalMessageError,
+                  modalMessage.type === "success" && styles.modalMessageSuccess,
+                  modalMessage.type === "info" && styles.modalMessageInfo,
+                ]}
+              >
+                <MaterialIcons
+                  name={
+                    modalMessage.type === "error"
+                      ? "error"
+                      : modalMessage.type === "success"
+                      ? "check-circle"
+                      : "info"
+                  }
+                  size={20}
+                  color="#FFF"
+                />
+                <Text style={styles.modalMessageText}>{modalMessage.text}</Text>
+              </View>
+            )}
+
+            {selectedRecording && (
+              <View style={styles.recordingDetailCard}>
+                {/* Nome do arquivo - linha inteira */}
+                <View style={styles.detailItem}>
+                  <MaterialIcons
+                    name="record-voice-over"
+                    size={20}
+                    color="#666"
+                  />
+                  <Text style={styles.detailText} numberOfLines={1}>
+                    {selectedRecording.uri.split("/").pop()?.split("_")[1] ||
+                      "Gravação"}
+                  </Text>
+                </View>
+
+                {/* Data e Duração - lado a lado com flexGrow diferente */}
+                <View style={styles.dateTimeRow}>
+                  {/* Data - mais espaço (flexGrow 3) */}
+                  <View style={styles.dateTimeItemLarge}>
                     <MaterialIcons name="access-time" size={20} color="#666" />
-                    <Text style={styles.infoText}>
+                    <Text style={styles.dateTimeText}>
                       {new Date(selectedRecording.timestamp).toLocaleString(
                         "pt-BR"
                       )}
                     </Text>
                   </View>
-                  <View style={styles.infoRow}>
+
+                  {/* Duração - menos espaço (flexGrow 1) */}
+                  <View style={styles.dateTimeItemSmall}>
                     <MaterialIcons name="timer" size={20} color="#666" />
-                    <Text style={styles.infoText}>
+                    <Text style={styles.dateTimeTextSmall}>
                       {formatTime(selectedRecording.duration)}
                     </Text>
                   </View>
-                  <View style={styles.infoRow}>
-                    <MaterialIcons name="label" size={20} color="#666" />
-                    <Text style={styles.infoText}>
-                      {translateVocalization[
-                        selectedRecording.vocalizationName
-                      ] || selectedRecording.vocalizationName}
-                    </Text>
-                  </View>
-                  <View style={styles.infoRow}>
-                    <MaterialIcons
-                      name={
-                        selectedRecording.status === "sent"
-                          ? "cloud-done"
-                          : "cloud-upload"
-                      }
-                      size={20}
-                      color={
-                        selectedRecording.status === "sent" ? "#4CAF50" : "#666"
-                      }
-                    />
-                    <Text
-                      style={[
-                        styles.infoText,
-                        selectedRecording.status === "sent" && {
-                          color: "#4CAF50",
-                          fontWeight: "600",
-                        },
-                      ]}
-                    >
-                      {selectedRecording.status === "sent"
-                        ? "Enviado"
-                        : "Pendente de envio"}
-                    </Text>
-                  </View>
                 </View>
-              )}
 
+                {/* Tipo de vocalização - linha inteira */}
+                <View style={styles.detailItem}>
+                  <MaterialIcons name="label" size={20} color="#666" />
+                  <Text style={styles.detailText} numberOfLines={1}>
+                    {translateVocalization[
+                      selectedRecording.vocalizationName
+                    ] || selectedRecording.vocalizationName}
+                  </Text>
+                </View>
+
+                {/* Status - linha inteira */}
+                <View style={styles.detailItem}>
+                  <MaterialIcons
+                    name={
+                      selectedRecording.status === "sent"
+                        ? "cloud-done"
+                        : "cloud-upload"
+                    }
+                    size={20}
+                    color={
+                      selectedRecording.status === "sent" ? "#4CAF50" : "#666"
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.detailText,
+                      selectedRecording.status === "sent" && {
+                        color: "#4CAF50",
+                        fontWeight: "600",
+                      },
+                    ]}
+                  >
+                    {selectedRecording.status === "sent"
+                      ? "Enviado"
+                      : "Pendente de envio"}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            <ScrollView showsVerticalScrollIndicator={false}>
               {loadingParticipantes ? (
                 <ActivityIndicator
                   size="small"
@@ -1076,20 +1153,23 @@ export default function AudiosScreen() {
                   style={styles.loadingIndicator}
                 />
               ) : (
-                <ParticipanteSelector
-                  participantes={participantes}
-                  selectedParticipanteId={selectedAudioParticipanteId}
-                  onParticipanteChange={setSelectedAudioParticipanteId}
-                />
+                <View>
+                  <ParticipanteSelector
+                    participantes={participantes}
+                    selectedParticipanteId={selectedAudioParticipanteId}
+                    onParticipanteChange={setSelectedAudioParticipanteId}
+                  />
+                </View>
               )}
+
               {loadingVocalizations ? (
                 <ActivityIndicator
-                  size="large"
+                  size="small"
                   color="#2196F3"
                   style={styles.loadingIndicator}
                 />
               ) : (
-                <View style={styles.selectContainer}>
+                <View>
                   <VocalizationSelect
                     vocalizations={vocalizations}
                     selectedVocalizationId={selectedVocalizationId}
@@ -1097,55 +1177,49 @@ export default function AudiosScreen() {
                   />
                 </View>
               )}
+            </ScrollView>
 
-              <View style={styles.modalActions}>
-                <ButtonCustom
-                  title="Atualizar Dados da Gravação"
-                  onPress={() => setShowUpdateConfirmModal(true)}
-                  color="#2196F3"
-                  style={styles.actionButton}
-                  icon={<MaterialIcons name="edit" size={20} color="#FFF" />}
-                  disabled={selectedRecording?.status === "sent"}
-                />
+            <View style={styles.modalActions}>
+              <ButtonCustom
+                title="Atualizar Dados da Gravação"
+                onPress={() => setShowUpdateConfirmModal(true)}
+                color="#2196F3"
+                style={styles.actionButton}
+                icon={<MaterialIcons name="edit" size={20} color="#FFF" />}
+                disabled={selectedRecording?.status === "sent"}
+              />
 
-                <ButtonCustom
-                  title={sendingAudio ? "Enviando..." : "Enviar Áudio"}
-                  onPress={() =>
-                    selectedRecording &&
-                    handleUpload(
-                      selectedRecording.vocalizationId,
-                      selectedRecording.uri
-                    )
-                  }
-                  color="#4CAF50"
-                  style={styles.actionButton}
-                  icon={
-                    sendingAudio ? (
-                      <ActivityIndicator size="small" color="#FFF" />
-                    ) : (
-                      <MaterialIcons
-                        name="cloud-upload"
-                        size={20}
-                        color="#FFF"
-                      />
-                    )
-                  }
-                  disabled={
-                    selectedRecording?.status === "sent" || sendingAudio
-                  }
-                />
+              <ButtonCustom
+                title={sendingAudio ? "Enviando..." : "Enviar Áudio"}
+                onPress={() =>
+                  selectedRecording &&
+                  handleUpload(
+                    selectedRecording.vocalizationId,
+                    selectedRecording.uri
+                  )
+                }
+                color="#4CAF50"
+                style={styles.actionButton}
+                icon={
+                  sendingAudio ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <MaterialIcons name="cloud-upload" size={20} color="#FFF" />
+                  )
+                }
+                disabled={selectedRecording?.status === "sent" || sendingAudio}
+              />
 
-                <ButtonCustom
-                  title="Excluir Áudio"
-                  onPress={() => setShowConfirmDeleteModal(true)}
-                  color="#F44336"
-                  style={styles.actionButton}
-                  icon={<MaterialIcons name="delete" size={20} color="#FFF" />}
-                />
-              </View>
+              <ButtonCustom
+                title="Excluir Áudio"
+                onPress={() => setShowConfirmDeleteModal(true)}
+                color="#F44336"
+                style={styles.actionButton}
+                icon={<MaterialIcons name="delete" size={20} color="#FFF" />}
+              />
             </View>
           </View>
-        </ScrollView>
+        </View>
       </Modal>
     </View>
   );
@@ -1297,6 +1371,83 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 8,
   },
+  dateTimeRow: {
+    flexDirection: "row",
+    marginBottom: 10,
+    width: "100%",
+  },
+  dateTimeItemLarge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F9F9F9",
+    borderRadius: 6,
+    padding: 8,
+    marginRight: 6,
+    flex: 3,
+  },
+  dateTimeItemSmall: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F9F9F9",
+    borderRadius: 6,
+    padding: 8,
+    flex: 1,
+  },
+  dateTimeText: {
+    fontSize: 13,
+    color: "#666",
+    marginLeft: 8,
+    flex: 1,
+  },
+  dateTimeTextSmall: {
+    fontSize: 13,
+    color: "#666",
+    marginLeft: 8,
+    fontWeight: "500",
+  },
+  detailItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+    width: "100%",
+    backgroundColor: "#F9F9F9",
+    borderRadius: 6,
+    padding: 8,
+  },
+  detailsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    marginTop: 8,
+  },
+  detailText: {
+    fontSize: 13,
+    color: "#666",
+    marginLeft: 8,
+    flex: 1,
+  },
+  modalMessage: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+  },
+  modalMessageText: {
+    color: "#FFF",
+    marginLeft: 8,
+    flex: 1,
+    fontSize: 14,
+  },
+  modalMessageError: {
+    backgroundColor: "#F44336",
+  },
+  modalMessageSuccess: {
+    backgroundColor: "#4CAF50",
+  },
+  modalMessageInfo: {
+    backgroundColor: "#2196F3",
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
@@ -1306,16 +1457,20 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    padding: 24,
+    padding: 20,
+    maxHeight: "100%",
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+    paddingBottom: 12,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "600",
     color: "#212121",
   },
@@ -1325,27 +1480,14 @@ const styles = StyleSheet.create({
   recordingDetailCard: {
     backgroundColor: "#F5F5F5",
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-  },
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  infoText: {
-    fontSize: 15,
-    color: "#666",
-    marginLeft: 12,
-    flex: 1,
+    padding: 14,
+    marginBottom: 16,
   },
   loadingIndicator: {
-    marginVertical: 20,
-  },
-  selectContainer: {
-    marginBottom: 20,
+    marginVertical: 10,
   },
   modalActions: {
+    justifyContent: "space-between",
     gap: 12,
   },
   actionButton: {
@@ -1404,7 +1546,6 @@ const styles = StyleSheet.create({
   filterItem: {
     marginBottom: 8,
   },
-
   filterActions: {
     flexDirection: "row",
     justifyContent: "center",
@@ -1420,5 +1561,18 @@ const styles = StyleSheet.create({
   filterStatsText: {
     fontSize: 12,
     color: "#666",
+  },
+  offlineMessage: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFEBEE",
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  offlineText: {
+    marginLeft: 8,
+    color: "#D32F2F",
+    fontSize: 14,
   },
 });

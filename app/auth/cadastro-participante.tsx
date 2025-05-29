@@ -95,7 +95,6 @@ export default function CadastroParticipanteScreen() {
       
       if (response && response.id) {
         await AsyncStorage.setItem("hasParticipant", "true");
-        await AsyncStorage.setItem("participantId", response.id.toString());
         setSuccessModalVisible(true);
       } else {
         Toast.show({
