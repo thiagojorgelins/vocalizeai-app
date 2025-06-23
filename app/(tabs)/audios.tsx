@@ -18,7 +18,7 @@ import NetInfo from "@react-native-community/netinfo";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import { useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -204,6 +204,17 @@ export default function AudiosScreen() {
       setLoadingVocalizations(false);
     }
   }
+
+  const audioStats = useMemo(() => {
+    const sent = recordings.filter((audio) => audio.status === "sent");
+    const pending = recordings.filter((audio) => audio.status === "pending");
+    return {
+      sent,
+      pending,
+      sentCount: sent.length,
+      pendingCount: pending.length,
+    };
+  }, [recordings]);
 
   const getParticipanteName = (participanteId: number | null) => {
     if (!participanteId) return "Não definido";
@@ -829,7 +840,7 @@ export default function AudiosScreen() {
             filterStatus === "pending" && styles.legendTextActive,
           ]}
         >
-          Pendente de envio
+          Pendente de envio ({audioStats.pendingCount})
         </Text>
       </TouchableOpacity>
 
@@ -849,7 +860,7 @@ export default function AudiosScreen() {
             filterStatus === "sent" && styles.legendTextActive,
           ]}
         >
-          Enviado
+          Enviado ({audioStats.sentCount})
         </Text>
       </TouchableOpacity>
     </View>
