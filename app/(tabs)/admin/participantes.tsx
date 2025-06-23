@@ -23,6 +23,7 @@ import {
 } from "react-native";
 import Toast from "react-native-toast-message";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { amountAudiosByParticipante } from "../../../services/audioService";
 
 export default function ParticipantesScreen() {
   const [participantes, setParticipantes] = useState<any[]>([]);
@@ -41,14 +42,39 @@ export default function ParticipantesScreen() {
   const [nivelSuporte, setNivelSuporte] = useState("1");
   const [idadeError, setIdadeError] = useState("");
   const [nomeError, setNomeError] = useState("");
-
+  const [qtdAudios, setQtdAudios] = useState<{ [key: number]: number }>({});
   const router = useRouter();
+
+  const fetchAudioCount = useCallback(async (participanteId: number) => {
+    try {
+      const count = await amountAudiosByParticipante(participanteId);
+      setQtdAudios((prev) => ({
+        ...prev,
+        [participanteId]: count,
+      }));
+    } catch (error) {
+      setQtdAudios((prev) => ({
+        ...prev,
+        [participanteId]: 0,
+      }));
+    }
+  }, []);
+
+  const fetchAllAudioCounts = useCallback(
+    async (participantes: any[]) => {
+      const promises = participantes.map((p) => fetchAudioCount(p.id));
+      await Promise.all(promises);
+    },
+    [fetchAudioCount]
+  );
 
   const fetchParticipantes = useCallback(async () => {
     setIsLoading(true);
     try {
       const data = await getAllParticipantes();
       setParticipantes(data);
+
+      await fetchAllAudioCounts(data);
     } catch (error: any) {
       Toast.show({
         type: "error",
@@ -58,7 +84,7 @@ export default function ParticipantesScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [fetchAllAudioCounts]);
 
   useFocusEffect(
     useCallback(() => {
@@ -181,8 +207,8 @@ export default function ParticipantesScreen() {
           id: participante.id_usuario,
           participanteId: participante.id,
           fromScreen: "admin-participantes",
-          directToAudios: "true"
-        }
+          directToAudios: "true",
+        },
       });
     } catch (error) {
       Toast.show({
@@ -247,6 +273,12 @@ export default function ParticipantesScreen() {
             <View style={styles.detailRow}>
               <MaterialIcons name="record-voice-over" size={20} color="#666" />
               <Text style={styles.detailText}>{item.qtd_palavras}</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <MaterialIcons name="record-voice-over" size={20} color="#666" />
+              <Text style={styles.detailText}>
+                Quantidade de áudios enviados: {qtdAudios[item.id] ?? 0}
+              </Text>
             </View>
           </View>
         </View>
